@@ -1,8 +1,0 @@
-services:
-  hapi-fhir:
-    image: hapiproject/hapi:v7.6.0
-    ports:
-      - "8080:8080"
-    environment:
-      HAPI_FHIR_FHIR_VERSION: R4
-      HAPI_FHIR_SECURITY_ENABLED: "false"
