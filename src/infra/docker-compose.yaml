@@ -6,3 +6,29 @@ services:
     environment:
       HAPI_FHIR_FHIR_VERSION: R4
       HAPI_FHIR_SECURITY_ENABLED: "false"
+      NONFHIR_DB_HOST: db.lrigppqtqfztybxegils.supabase.co
+      NONFHIR_DB_PORT: "5432"
+      NONFHIR_DB_NAME: postgres
+      NONFHIR_DB_USER: postgres
+      NONFHIR_DB_PASSWORD: CS6440healt
+      # JDBC settings to make HAPI persist FHIR resources into Postgres
+      # For local testing these point at the same postgres service below.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db.lrigppqtqfztybxegils.supabase.co:5432/postgres
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: CS6440healt
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: appdb
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: example
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
+

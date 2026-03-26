@@ -1,0 +1,15 @@
+app = "hapi-fhir-app"
+
+[build]
+  image = "hapiproject/hapi:v7.6.0"
+
+[env]
+  HAPI_FHIR_FHIR_VERSION = "R4"
+  HAPI_FHIR_SECURITY_ENABLED = "false"
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
