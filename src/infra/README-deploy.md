@@ -17,7 +17,7 @@ flyctl launch --name hapi-fhir-app --image hapiproject/hapi:v7.6.0 --port 8080
 3. Set secrets (replace values from Supabase below):
 
 ```bash
-flyctl secrets set NONFHIR_DB_HOST=db.lrigppqtqfztybxegils.supabase.co NONFHIR_DB_PORT=5432 NONFHIR_DB_NAME=postgres NONFHIR_DB_USER=postgres NONFHIR_DB_PASSWORD=<CS6440healt>
+flyctl secrets set NONFHIR_DB_HOST=db.lrigppqtqfztybxegils.supabase.co NONFHIR_DB_PORT=5432 NONFHIR_DB_NAME=postgres NONFHIR_DB_USER=postgres NONFHIR_DB_PASSWORD=CS6440healt
 ```
 
 4. Deploy: `flyctl deploy --config fly.toml`

@@ -10,7 +10,7 @@ flyctl secrets set \
   NONFHIR_DB_NAME=postgres \
   NONFHIR_DB_USER=postgres \
   NONFHIR_DB_PASSWORD=CS6440healt \
-  SPRING_DATASOURCE_URL=jdbc:postgresql://db.lrigppqtqfztybxegils.supabase.co:5432/postgres \
+  SPRING_DATASOURCE_URL=jdbc:postgresql://db.lrigppqtqfztybxegils.supabase.co:5432/postgres?sslmode=require \
   SPRING_DATASOURCE_USERNAME=postgres \
   SPRING_DATASOURCE_PASSWORD=CS6440healt
 
