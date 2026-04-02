@@ -1,0 +1,156 @@
+.patient-header {
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.header-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.patient-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #4361ee;
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.patient-identity {
+  flex: 1;
+}
+
+.patient-name {
+  margin: 0 0 6px;
+  font-size: 1.25rem;
+  color: #1a1a2e;
+}
+
+.patient-demo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: #4b5563;
+  margin-bottom: 6px;
+}
+
+.demo-sep {
+  color: #d1d5db;
+}
+
+.patient-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.clinical-summary h3 {
+  margin: 0 0 16px;
+  font-size: 1rem;
+  color: #1a1a2e;
+  font-weight: 600;
+}
+
+.summary-loading,
+.summary-error {
+  font-size: 0.9rem;
+  color: #6b7280;
+}
+
+.summary-error {
+  color: #c0392b;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.summary-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.summary-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
+.summary-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.summary-unit {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: #6b7280;
+}
+
+.summary-date {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-top: 4px;
+}
+
+.summary-none {
+  font-size: 1rem;
+  color: #9ca3af;
+}
+
+.med-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.med-item {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.med-item:last-child {
+  border-bottom: none;
+}
+
+.med-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #1a1a2e;
+}
+
+.med-dose {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.med-more {
+  font-size: 0.8rem;
+  color: #4361ee;
+  padding-top: 4px;
+}
