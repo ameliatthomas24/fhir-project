@@ -1,0 +1,19 @@
+{
+  "runID": "e859cdc9-7d95-4577-8c0c-64da78bf8d08",
+  "seed": 1775179125599,
+  "clinicianSeed": 1775179125599,
+  "referenceTime": "20260403",
+  "endTime": "20260403",
+  "version": "v3.4.0-18-ga07a65555\n",
+  "patientCount": 1000,
+  "providerCount": 1327,
+  "payerCount": 9,
+  "javaVersion": "17.0.18",
+  "generate.thread_pool_size": -1,
+  "generatorThreads": 12,
+  "runStartTime": "2026-04-03T01:18:45Z",
+  "runTimeInSeconds": 32,
+  "exporter.years_of_history": "10",
+  "state": "Massachusetts",
+  "modules": "metabolic*"
+}
