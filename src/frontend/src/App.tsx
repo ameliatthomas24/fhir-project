@@ -1,33 +1,47 @@
-import { useState } from "react";
+import { useState } from "react"; /*amelia*/
 import PatientSearch from "./components/PatientSearch";
-import PatientHeader from "./components/PatientHeader";
+import PatientRecord from "./components/PatientRecord";
 import type { PatientSummary } from "./types";
 import "./App.css";
 
+type Portal = "clinician" | "patient";
+
 export default function App() {
-  const [selectedPatient, setSelectedPatient] = useState<PatientSummary | null>(null);
+    const [portal, setPortal] = useState<Portal>("clinician");
+    const [selectedPatient, setSelectedPatient] = useState<PatientSummary | null>(null);
 
-  return (
-    <div className="app">
-      <header className="app-header">
-        <h1>Diabetes Management Portal</h1>
-      </header>
-
-      <main className="app-main">
-        <div className="search-panel">
-          <PatientSearch onSelect={setSelectedPatient} />
+    return (
+        <div className="app">
+            <header className="app-header">
+                <span className="app-title">Diabetes Management Portal</span>
+                <div className="portal-toggle">
+                    <button
+                        className={`toggle-btn ${portal === "clinician" ? "active" : ""}`}
+                        onClick={() => setPortal("clinician")}
+                    >
+                        Clinician Portal
+                    </button>
+                    <button
+                        className={`toggle-btn ${portal === "patient" ? "active" : ""}`}
+                        onClick={() => setPortal("patient")}
+                    >
+                        Patient Portal
+                    </button>
+                </div>
+            </header>
+            <main className="app-main">
+                {!selectedPatient ? (
+                    <div className="search-page">
+                        <PatientSearch onSelect={setSelectedPatient} portal={portal} />
+                    </div>
+                ) : (
+                    <PatientRecord
+                        patient={selectedPatient}
+                        portal={portal}
+                        onBack={() => setSelectedPatient(null)}
+                    />
+                )}
+            </main>
         </div>
-
-        <div className="detail-panel">
-          {selectedPatient ? (
-            <PatientHeader patient={selectedPatient} />
-          ) : (
-            <div className="detail-empty">
-              <p>Select a patient to view their clinical summary.</p>
-            </div>
-          )}
-        </div>
-      </main>
-    </div>
-  );
+    );
 }

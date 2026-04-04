@@ -211,7 +211,7 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
         { id: "medications", label: "Medications" },
         { id: "visits", label: "Visits & Appointments" },
         { id: "notes", label: "Clinical Notes" },
-        { id: "ml-risk", label: "🤖 ML Risk Analysis" },
+        { id: "ml-risk", label: "ML Risk Analysis" },
     ];
 
     return (
