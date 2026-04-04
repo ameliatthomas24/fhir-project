@@ -1,25 +1,56 @@
 services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: hapifhir
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hapifhir"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   hapi-fhir:
-    image: hapiproject/hapi:v7.6.0
+    image: hapiproject/hapi:latest
     ports:
       - "8080:8080"
-    configs:
-      - source: hapi
-        target: /data/hapi/application.yaml
-    volumes:
-      - hapi-data:/data/hapi
     environment:
-      HAPI_FHIR_FHIR_VERSION: R4
-      HAPI_FHIR_SECURITY_ENABLED: "false"
-      # JDBC settings to make HAPI persist FHIR resources into Postgres
-      # For local testing these point at the same postgres service below.
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db.lrigppqtqfztybxegils.supabase.co:5432/postgres
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/hapifhir
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: CS6440healt
+      SPRING_DATASOURCE_PASSWORD: password
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      HAPI_FHIR_FHIR_VERSION: R4
+      HAPI_FHIR_LUCENE_ENABLED: "false"
+      HAPI_FHIR_SUBSCRIPTION_RESTHOOK_ENABLED: "false"
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
-  pgdata:
+  postgres_data:
 
+# services:
+#   hapi-fhir:
+#     image: hapiproject/hapi:v7.6.0
+#     ports:
+#       - "8080:8080"
+#     volumes:
+#       - hapi-data:/data/hapi
+#     environment:
+#       HAPI_FHIR_FHIR_VERSION: R4
+#       HAPI_FHIR_SECURITY_ENABLED: "false"
+#       SPRING_DATASOURCE_URL: jdbc:postgresql://db.lrigppqtqfztybxegils.supabase.co:5432/postgres
+#       SPRING_DATASOURCE_USERNAME: postgres
+#       SPRING_DATASOURCE_PASSWORD: CS6440healt
+#       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+#       SPRING_JPA_HIBERNATE_DDL_AUTO: update
+#       SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
+
+# volumes:
+#   pgdata:
+#   hapi-data:
