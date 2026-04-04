@@ -1,4 +1,4 @@
-import type { MedicationSummary, ObservationPoint, PatientSummary } from "../types";
+import type { MedicationSummary, ObservationPoint, PatientSummary, RecommendationResponse } from "../types";
 
 async function apiFetch<T>(path: string): Promise<T> {
   const res = await fetch(path);
@@ -20,4 +20,8 @@ export function getObservations(patientId: string): Promise<ObservationPoint[]> 
 
 export function getActiveMedications(patientId: string): Promise<MedicationSummary[]> {
   return apiFetch<MedicationSummary[]>(`/medications/${patientId}/active`);
+}
+
+export function getRecommendations(patientId: string): Promise<RecommendationResponse> {
+  return apiFetch<RecommendationResponse>(`/recommendations/${patientId}`);
 }

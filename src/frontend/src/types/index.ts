@@ -27,3 +27,15 @@ export interface MedicationSummary {
   dosage_instruction?: string;
   prescriber_id?: string;
 }
+
+export interface Recommendation {
+  category: string;
+  title: string;
+  detail: string;
+  priority: "High" | "Medium" | "Low";
+}
+
+export interface RecommendationResponse {
+  summary: string;
+  recommendations: Recommendation[];
+}
