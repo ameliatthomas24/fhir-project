@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState, useRef } from "react";
 import { getActiveMedications, getObservations } from "../api/client";
 import type { MedicationSummary, ObservationPoint, PatientSummary } from "../types";
+import CareRecommendations from "./CareRecommendations";
 import "./PatientRecord.css";
 
 interface Props {
@@ -9,7 +10,7 @@ interface Props {
     onBack: () => void;
 }
 
-type Tab = "overview" | "labs" | "medications" | "visits" | "notes" | "ml-risk";
+type Tab = "overview" | "labs" | "medications" | "visits" | "notes" | "ml-risk" | "care-plan";
 
 const GLUCOSE_CODES = new Set(["15074-8", "2339-0"]);
 const HBA1C_CODES = new Set(["4548-4", "17856-6"]);
@@ -212,6 +213,7 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
         { id: "visits", label: "Visits & Appointments" },
         { id: "notes", label: "Clinical Notes" },
         { id: "ml-risk", label: "ML Risk Analysis" },
+        { id: "care-plan", label: "✦ Care Plan" },
     ];
 
     return (
@@ -446,6 +448,13 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                             <div className="pr-card">
                                 <div className="pr-card-title">{tab === "visits" ? "Visits & Appointments" : "Clinical Notes"}</div>
                                 <p className="pr-empty" style={{ marginTop: "1rem" }}>No data available.</p>
+                            </div>
+                        )}
+
+                        {tab === "care-plan" && (
+                            <div className="pr-card">
+                                <div className="pr-card-title" style={{ marginBottom: "1.25rem" }}>✦ Preventative Care Recommendations</div>
+                                <CareRecommendations patientId={patient.id} />
                             </div>
                         )}
 
