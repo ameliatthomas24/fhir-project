@@ -9,7 +9,7 @@ interface Props {
     onBack: () => void;
 }
 
-type Tab = "overview" | "labs" | "medications" | "visits" | "notes";
+type Tab = "overview" | "labs" | "medications" | "visits" | "notes" | "ml-risk";
 
 const GLUCOSE_CODES = new Set(["15074-8", "2339-0"]);
 const HBA1C_CODES = new Set(["4548-4", "17856-6"]);
@@ -59,6 +59,24 @@ function CircleRisk({ pct, color }: { pct: number; color: string }) {
     );
 }
 
+function CircleRiskLarge({ pct, color, label }: { pct: number; color: string; label: string }) {
+    const r = 54;
+    const circ = 2 * Math.PI * r;
+    const dash = (pct / 100) * circ;
+    return (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+            <svg width="130" height="130" viewBox="0 0 130 130">
+                <circle cx="65" cy="65" r={r} fill="none" stroke="#f1f5f9" strokeWidth="10" />
+                <circle cx="65" cy="65" r={r} fill="none" stroke={color} strokeWidth="10"
+                    strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" transform="rotate(-90 65 65)" />
+                <text x="65" y="60" textAnchor="middle" fontSize="22" fontWeight="700" fill={color}>{pct}%</text>
+                <text x="65" y="78" textAnchor="middle" fontSize="11" fill="#94a3b8">risk score</text>
+            </svg>
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "#1e293b" }}>{label}</span>
+        </div>
+    );
+}
+
 function LabBar({ label, value, max, unit }: { label: string; value: number; max: number; unit: string }) {
     const pct = Math.min(100, (value / max) * 100);
     const over = value > max;
@@ -104,18 +122,15 @@ function GlucoseChart({ data }: { data: ObservationPoint[] }) {
         const xS = (i: number) => pad.left + (i / Math.max(data.length - 1, 1)) * cw;
         const yS = (v: number) => pad.top + ch - ((v - minV) / (maxV - minV)) * ch;
 
-        // Target range fill
         ctx.fillStyle = "rgba(16,185,129,0.05)";
         const y180 = yS(Math.min(180, maxV));
         const y70 = yS(Math.max(70, minV));
         ctx.fillRect(pad.left, y180, cw, y70 - y180);
 
-        // Dashed target at 135
         ctx.beginPath(); ctx.setLineDash([5, 4]); ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 1;
         ctx.moveTo(pad.left, yS(135)); ctx.lineTo(pad.left + cw, yS(135)); ctx.stroke();
         ctx.setLineDash([]);
 
-        // Grid
         [45, 90, 135, 180].forEach(v => {
             if (v < minV || v > maxV) return;
             ctx.beginPath(); ctx.strokeStyle = "#f8fafc"; ctx.lineWidth = 1;
@@ -124,19 +139,16 @@ function GlucoseChart({ data }: { data: ObservationPoint[] }) {
             ctx.fillText(String(v), pad.left - 6, yS(v) + 4);
         });
 
-        // Line
         ctx.beginPath(); ctx.strokeStyle = "#10b981"; ctx.lineWidth = 2.5; ctx.lineJoin = "round";
         data.forEach((d, i) => i === 0 ? ctx.moveTo(xS(i), yS(d.value ?? 0)) : ctx.lineTo(xS(i), yS(d.value ?? 0)));
         ctx.stroke();
 
-        // Dots
         data.forEach((d, i) => {
             ctx.beginPath(); ctx.arc(xS(i), yS(d.value ?? 0), 4.5, 0, Math.PI * 2);
             ctx.fillStyle = "#10b981"; ctx.fill();
             ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.stroke();
         });
 
-        // X year labels
         const seen = new Set<string>();
         ctx.fillStyle = "#94a3b8"; ctx.font = "11px Inter,sans-serif"; ctx.textAlign = "center";
         data.forEach((d, i) => {
@@ -149,12 +161,15 @@ function GlucoseChart({ data }: { data: ObservationPoint[] }) {
     return <div ref={wrapRef} style={{ width: "100%" }}><canvas ref={canvasRef} /></div>;
 }
 
+type MlRisk = { risk_score: number; risk_label: string; top_factors: { feature: string; importance: number }[]; inputs?: Record<string, number | string> };
+
 export default function PatientRecord({ patient, portal, onBack }: Props) {
     const [tab, setTab] = useState<Tab>("overview");
     const [observations, setObservations] = useState<ObservationPoint[]>([]);
     const [medications, setMedications] = useState<MedicationSummary[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [mlRisk, setMlRisk] = useState<MlRisk | null>(null);
 
     useEffect(() => {
         setLoading(true);
@@ -162,6 +177,13 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
             .then(([obs, meds]) => { setObservations(obs); setMedications(meds); })
             .catch(err => setError(err instanceof Error ? err.message : "Failed to load"))
             .finally(() => setLoading(false));
+    }, [patient.id]);
+
+    useEffect(() => {
+        fetch(`http://127.0.0.1:8000/predict/${patient.id}`)
+            .then(r => r.json())
+            .then(data => setMlRisk(data))
+            .catch(() => { });
     }, [patient.id]);
 
     const latestGlucose = latestByCode(observations, GLUCOSE_CODES);
@@ -179,12 +201,17 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
     const neuroRisk = Math.min(99, Math.round(hba1cVal * 2 + 3));
     const retinoRisk = Math.min(99, Math.round(hba1cVal * 5 + 5));
 
+    const riskColor = mlRisk?.risk_label === "High" ? "#ef4444" : mlRisk?.risk_label === "Moderate" ? "#f59e0b" : "#10b981";
+    const riskBg = mlRisk?.risk_label === "High" ? "#fee2e2" : mlRisk?.risk_label === "Moderate" ? "#fef3c7" : "#dcfce7";
+    const riskText = mlRisk?.risk_label === "High" ? "#991b1b" : mlRisk?.risk_label === "Moderate" ? "#92400e" : "#166534";
+
     const tabs: { id: Tab; label: string }[] = [
         { id: "overview", label: "Overview" },
         { id: "labs", label: "Labs & Analytics" },
         { id: "medications", label: "Medications" },
         { id: "visits", label: "Visits & Appointments" },
         { id: "notes", label: "Clinical Notes" },
+        { id: "ml-risk", label: "ML Risk Analysis" },
     ];
 
     return (
@@ -277,13 +304,36 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                         <hr className="pr-hr" />
 
                         <button className="pr-ask-ai">✦ Ask AI</button>
+
+                        {/* ML Risk Preview in Sidebar */}
+                        {mlRisk && (
+                            <button
+                                className="pr-ml-preview"
+                                onClick={() => setTab("ml-risk")}
+                            >
+                                <div className="pr-ml-preview-header">
+                                    <span>🤖 ML Diabetes Risk</span>
+                                    <span style={{ fontSize: "11px", color: "#3b82f6" }}>View details ›</span>
+                                </div>
+                                <div className="pr-ml-preview-score">
+                                    <span style={{ fontSize: "20px", fontWeight: 700, color: riskColor }}>
+                                        {(mlRisk.risk_score * 100).toFixed(1)}%
+                                    </span>
+                                    <span style={{ fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "20px", background: riskBg, color: riskText }}>
+                                        {mlRisk.risk_label} Risk
+                                    </span>
+                                </div>
+                                <div className="pr-ml-bar-bg">
+                                    <div className="pr-ml-bar-fill" style={{ width: `${mlRisk.risk_score * 100}%`, background: riskColor }} />
+                                </div>
+                            </button>
+                        )}
                     </div>
 
                     {/* MAIN CONTENT */}
                     <div className="pr-main">
                         {tab === "overview" && (
                             <>
-                                {/* Vitals */}
                                 <div className="pr-vitals">
                                     {[
                                         { label: "Blood Glucose", value: latestGlucose?.value ?? "—", unit: "mg/dL", change: "+2%", pos: true },
@@ -299,7 +349,6 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                                     ))}
                                 </div>
 
-                                {/* Chart */}
                                 <div className="pr-card">
                                     <div className="pr-card-hdr">
                                         <span className="pr-card-title">📈 Blood Glucose Timeline</span>
@@ -312,7 +361,6 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                                     <GlucoseChart data={glucoseHistory} />
                                 </div>
 
-                                {/* Labs + Risk */}
                                 <div className="pr-two-col">
                                     <div className="pr-card">
                                         <div className="pr-card-title" style={{ marginBottom: "1rem" }}>📊 Labs</div>
@@ -398,6 +446,74 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                             <div className="pr-card">
                                 <div className="pr-card-title">{tab === "visits" ? "Visits & Appointments" : "Clinical Notes"}</div>
                                 <p className="pr-empty" style={{ marginTop: "1rem" }}>No data available.</p>
+                            </div>
+                        )}
+
+                        {tab === "ml-risk" && (
+                            <div>
+                                <div className="pr-card" style={{ marginBottom: "1.25rem" }}>
+                                    <div className="pr-card-title" style={{ marginBottom: "1.5rem" }}>🤖 ML Diabetes Risk Analysis</div>
+                                    {!mlRisk ? (
+                                        <p className="pr-empty">Loading ML prediction...</p>
+                                    ) : (
+                                        <>
+                                            {/* Big score display */}
+                                            <div className="pr-ml-hero">
+                                                <CircleRiskLarge
+                                                    pct={Math.round(mlRisk.risk_score * 100)}
+                                                    color={riskColor}
+                                                    label={`${mlRisk.risk_label} Risk`}
+                                                />
+                                                <div className="pr-ml-hero-info">
+                                                    <div style={{ fontSize: "13px", color: "#64748b", marginBottom: "1rem" }}>
+                                                        This score is generated by an XGBoost machine learning model trained on clinical diabetes data.
+                                                        It uses the patient's current vitals and lab values to estimate diabetes risk.
+                                                    </div>
+                                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                                                        {mlRisk.inputs && Object.entries(mlRisk.inputs).map(([k, v]) => (
+                                                            <div key={k} style={{ background: "#f8fafc", borderRadius: "8px", padding: "10px 12px", border: "1px solid #f1f5f9" }}>
+                                                                <div style={{ fontSize: "11px", color: "#94a3b8", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                                                                    {k.replace(/_/g, " ")}
+                                                                </div>
+                                                                <div style={{ fontSize: "15px", fontWeight: 600, color: "#1e293b", marginTop: "2px" }}>
+                                                                    {typeof v === "number" ? v.toFixed(1) : v}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {mlRisk && (
+                                    <div className="pr-card">
+                                        <div className="pr-card-title" style={{ marginBottom: "1.25rem" }}>Top Risk Factors</div>
+                                        <div style={{ fontSize: "13px", color: "#64748b", marginBottom: "1rem" }}>
+                                            Features ranked by their influence on this patient's risk score.
+                                        </div>
+                                        {mlRisk.top_factors.map((f, i) => (
+                                            <div key={f.feature} style={{ marginBottom: "14px" }}>
+                                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+                                                    <span style={{ fontSize: "13px", fontWeight: 500, color: "#1e293b" }}>
+                                                        {i + 1}. {f.feature.replace(/_/g, " ")}
+                                                    </span>
+                                                    <span style={{ fontSize: "13px", fontWeight: 600, color: riskColor }}>
+                                                        {(f.importance * 100).toFixed(1)}%
+                                                    </span>
+                                                </div>
+                                                <div style={{ height: "8px", background: "#f1f5f9", borderRadius: "4px", overflow: "hidden" }}>
+                                                    <div style={{
+                                                        height: "100%", borderRadius: "4px",
+                                                        width: `${(f.importance / mlRisk.top_factors[0].importance) * 100}%`,
+                                                        background: i === 0 ? riskColor : i === 1 ? "#3b82f6" : "#94a3b8"
+                                                    }} />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

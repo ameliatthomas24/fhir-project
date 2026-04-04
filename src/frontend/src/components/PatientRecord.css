@@ -605,3 +605,60 @@
         padding: 0.75rem 1rem;
     }
 }
+
+.pr-ml-preview {
+    width: 100%;
+    margin-top: 1rem;
+    padding: 12px;
+    background: #f8fafc;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s;
+}
+
+    .pr-ml-preview:hover {
+        background: #eff6ff;
+        border-color: #bfdbfe;
+    }
+
+.pr-ml-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 8px;
+}
+
+.pr-ml-preview-score {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.pr-ml-bar-bg {
+    height: 5px;
+    background: #e2e8f0;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.pr-ml-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s ease;
+}
+
+.pr-ml-hero {
+    display: flex;
+    gap: 2rem;
+    align-items: flex-start;
+}
+
+.pr-ml-hero-info {
+    flex: 1;
+}
