@@ -1,0 +1,524 @@
+﻿import { useEffect, useState, useRef } from "react";
+import { getActiveMedications, getObservations } from "../api/client";
+import type { MedicationSummary, ObservationPoint, PatientSummary } from "../types";
+import "./PatientRecord.css";
+
+interface Props {
+    patient: PatientSummary;
+    portal: "clinician" | "patient";
+    onBack: () => void;
+}
+
+type Tab = "overview" | "labs" | "medications" | "visits" | "notes" | "ml-risk";
+
+const GLUCOSE_CODES = new Set(["15074-8", "2339-0"]);
+const HBA1C_CODES = new Set(["4548-4", "17856-6"]);
+const BP_CODES = new Set(["55284-4", "8462-4", "8480-6"]);
+const HR_CODES = new Set(["8867-4"]);
+const WEIGHT_CODES = new Set(["29463-7", "3141-9"]);
+const LDL_CODES = new Set(["2089-1", "18262-6"]);
+const HDL_CODES = new Set(["2085-9"]);
+const TRIGLYCERIDE_CODES = new Set(["2571-8"]);
+
+function latestByCode(obs: ObservationPoint[], codes: Set<string>) {
+    return obs.filter(o => codes.has(o.code) && o.value != null)
+        .sort((a, b) => (b.effective_date ?? "").localeCompare(a.effective_date ?? ""))[0];
+}
+
+function byCode(obs: ObservationPoint[], codes: Set<string>) {
+    return obs.filter(o => codes.has(o.code) && o.value != null)
+        .sort((a, b) => (a.effective_date ?? "").localeCompare(b.effective_date ?? ""));
+}
+
+function formatDate(d?: string) {
+    if (!d) return "—";
+    return new Date(d).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
+}
+
+function formatDOB(bd?: string) {
+    if (!bd) return "—";
+    const [y, m, d] = bd.split("-");
+    return `${m}.${d}.${y}`;
+}
+
+function getInitials(name: string) {
+    return name.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase();
+}
+
+function CircleRisk({ pct, color }: { pct: number; color: string }) {
+    const r = 28;
+    const circ = 2 * Math.PI * r;
+    const dash = (pct / 100) * circ;
+    return (
+        <svg width="72" height="72" viewBox="0 0 72 72" style={{ flexShrink: 0 }}>
+            <circle cx="36" cy="36" r={r} fill="none" stroke="#f1f5f9" strokeWidth="7" />
+            <circle cx="36" cy="36" r={r} fill="none" stroke={color} strokeWidth="7"
+                strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" transform="rotate(-90 36 36)" />
+            <text x="36" y="41" textAnchor="middle" fontSize="13" fontWeight="600" fill={color}>{pct}%</text>
+        </svg>
+    );
+}
+
+function CircleRiskLarge({ pct, color, label }: { pct: number; color: string; label: string }) {
+    const r = 54;
+    const circ = 2 * Math.PI * r;
+    const dash = (pct / 100) * circ;
+    return (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+            <svg width="130" height="130" viewBox="0 0 130 130">
+                <circle cx="65" cy="65" r={r} fill="none" stroke="#f1f5f9" strokeWidth="10" />
+                <circle cx="65" cy="65" r={r} fill="none" stroke={color} strokeWidth="10"
+                    strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" transform="rotate(-90 65 65)" />
+                <text x="65" y="60" textAnchor="middle" fontSize="22" fontWeight="700" fill={color}>{pct}%</text>
+                <text x="65" y="78" textAnchor="middle" fontSize="11" fill="#94a3b8">risk score</text>
+            </svg>
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "#1e293b" }}>{label}</span>
+        </div>
+    );
+}
+
+function LabBar({ label, value, max, unit }: { label: string; value: number; max: number; unit: string }) {
+    const pct = Math.min(100, (value / max) * 100);
+    const over = value > max;
+    return (
+        <div className="pr-lab-bar">
+            <div className="pr-lab-bar-header">
+                <span className="pr-lab-bar-label">{label}</span>
+                <span className="pr-lab-bar-val" style={{ color: over ? "#ef4444" : "#64748b" }}>
+                    {value} / {max} {unit}
+                </span>
+            </div>
+            <div className="pr-lab-bar-bg">
+                <div className="pr-lab-bar-fill" style={{ width: `${pct}%`, background: over ? "#ef4444" : "#3b82f6" }} />
+            </div>
+        </div>
+    );
+}
+
+function GlucoseChart({ data }: { data: ObservationPoint[] }) {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const wrapRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!canvasRef.current || !wrapRef.current || data.length === 0) return;
+        const canvas = canvasRef.current;
+        const wrap = wrapRef.current;
+        const dpr = window.devicePixelRatio || 1;
+        const w = wrap.offsetWidth;
+        const h = 220;
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        canvas.style.width = w + "px";
+        canvas.style.height = h + "px";
+        const ctx = canvas.getContext("2d")!;
+        ctx.scale(dpr, dpr);
+
+        const pad = { top: 16, right: 16, bottom: 36, left: 44 };
+        const cw = w - pad.left - pad.right;
+        const ch = h - pad.top - pad.bottom;
+        const vals = data.map(d => d.value ?? 0);
+        const minV = Math.max(0, Math.min(...vals) - 20);
+        const maxV = Math.max(...vals) + 20;
+        const xS = (i: number) => pad.left + (i / Math.max(data.length - 1, 1)) * cw;
+        const yS = (v: number) => pad.top + ch - ((v - minV) / (maxV - minV)) * ch;
+
+        ctx.fillStyle = "rgba(16,185,129,0.05)";
+        const y180 = yS(Math.min(180, maxV));
+        const y70 = yS(Math.max(70, minV));
+        ctx.fillRect(pad.left, y180, cw, y70 - y180);
+
+        ctx.beginPath(); ctx.setLineDash([5, 4]); ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 1;
+        ctx.moveTo(pad.left, yS(135)); ctx.lineTo(pad.left + cw, yS(135)); ctx.stroke();
+        ctx.setLineDash([]);
+
+        [45, 90, 135, 180].forEach(v => {
+            if (v < minV || v > maxV) return;
+            ctx.beginPath(); ctx.strokeStyle = "#f8fafc"; ctx.lineWidth = 1;
+            ctx.moveTo(pad.left, yS(v)); ctx.lineTo(pad.left + cw, yS(v)); ctx.stroke();
+            ctx.fillStyle = "#94a3b8"; ctx.font = "11px Inter,sans-serif"; ctx.textAlign = "right";
+            ctx.fillText(String(v), pad.left - 6, yS(v) + 4);
+        });
+
+        ctx.beginPath(); ctx.strokeStyle = "#10b981"; ctx.lineWidth = 2.5; ctx.lineJoin = "round";
+        data.forEach((d, i) => i === 0 ? ctx.moveTo(xS(i), yS(d.value ?? 0)) : ctx.lineTo(xS(i), yS(d.value ?? 0)));
+        ctx.stroke();
+
+        data.forEach((d, i) => {
+            ctx.beginPath(); ctx.arc(xS(i), yS(d.value ?? 0), 4.5, 0, Math.PI * 2);
+            ctx.fillStyle = "#10b981"; ctx.fill();
+            ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.stroke();
+        });
+
+        const seen = new Set<string>();
+        ctx.fillStyle = "#94a3b8"; ctx.font = "11px Inter,sans-serif"; ctx.textAlign = "center";
+        data.forEach((d, i) => {
+            const yr = d.effective_date ? new Date(d.effective_date).getFullYear().toString() : "";
+            if (yr && !seen.has(yr)) { seen.add(yr); ctx.fillText(yr, xS(i), h - pad.bottom + 16); }
+        });
+    }, [data]);
+
+    if (data.length === 0) return <div className="pr-chart-empty">No glucose data available</div>;
+    return <div ref={wrapRef} style={{ width: "100%" }}><canvas ref={canvasRef} /></div>;
+}
+
+type MlRisk = { risk_score: number; risk_label: string; top_factors: { feature: string; importance: number }[]; inputs?: Record<string, number | string> };
+
+export default function PatientRecord({ patient, portal, onBack }: Props) {
+    const [tab, setTab] = useState<Tab>("overview");
+    const [observations, setObservations] = useState<ObservationPoint[]>([]);
+    const [medications, setMedications] = useState<MedicationSummary[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [mlRisk, setMlRisk] = useState<MlRisk | null>(null);
+
+    useEffect(() => {
+        setLoading(true);
+        Promise.all([getObservations(patient.id), getActiveMedications(patient.id)])
+            .then(([obs, meds]) => { setObservations(obs); setMedications(meds); })
+            .catch(err => setError(err instanceof Error ? err.message : "Failed to load"))
+            .finally(() => setLoading(false));
+    }, [patient.id]);
+
+    useEffect(() => {
+        fetch(`http://127.0.0.1:8000/predict/${patient.id}`)
+            .then(r => r.json())
+            .then(data => setMlRisk(data))
+            .catch(() => { });
+    }, [patient.id]);
+
+    const latestGlucose = latestByCode(observations, GLUCOSE_CODES);
+    const latestBP = latestByCode(observations, BP_CODES);
+    const latestHR = latestByCode(observations, HR_CODES);
+    const latestWeight = latestByCode(observations, WEIGHT_CODES);
+    const latestHba1c = latestByCode(observations, HBA1C_CODES);
+    const latestLDL = latestByCode(observations, LDL_CODES);
+    const latestHDL = latestByCode(observations, HDL_CODES);
+    const latestTrig = latestByCode(observations, TRIGLYCERIDE_CODES);
+    const glucoseHistory = byCode(observations, GLUCOSE_CODES);
+
+    const hba1cVal = latestHba1c?.value ?? 6.5;
+    const cvRisk = Math.min(99, Math.round(hba1cVal * 4 + 10));
+    const neuroRisk = Math.min(99, Math.round(hba1cVal * 2 + 3));
+    const retinoRisk = Math.min(99, Math.round(hba1cVal * 5 + 5));
+
+    const riskColor = mlRisk?.risk_label === "High" ? "#ef4444" : mlRisk?.risk_label === "Moderate" ? "#f59e0b" : "#10b981";
+    const riskBg = mlRisk?.risk_label === "High" ? "#fee2e2" : mlRisk?.risk_label === "Moderate" ? "#fef3c7" : "#dcfce7";
+    const riskText = mlRisk?.risk_label === "High" ? "#991b1b" : mlRisk?.risk_label === "Moderate" ? "#92400e" : "#166534";
+
+    const tabs: { id: Tab; label: string }[] = [
+        { id: "overview", label: "Overview" },
+        { id: "labs", label: "Labs & Analytics" },
+        { id: "medications", label: "Medications" },
+        { id: "visits", label: "Visits & Appointments" },
+        { id: "notes", label: "Clinical Notes" },
+        { id: "ml-risk", label: "🤖 ML Risk Analysis" },
+    ];
+
+    return (
+        <div className="pr-page">
+            <div className="pr-topbar">
+                <button className="pr-back" onClick={onBack}>← Back to Search Results</button>
+                <span className="pr-portal-label">{portal === "clinician" ? "Clinician Portal" : "Patient Portal"}</span>
+            </div>
+
+            <div className="pr-tabs-bar">
+                <div className="pr-tabs">
+                    {tabs.map(t => (
+                        <button key={t.id} className={`pr-tab ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>
+                            {t.label}
+                        </button>
+                    ))}
+                </div>
+                {portal === "clinician" && (
+                    <div className="pr-actions">
+                        <button className="pr-btn pr-btn-primary">✉ Message Patient</button>
+                        <button className="pr-btn">+ Add Note</button>
+                        <button className="pr-btn">📅 Schedule Appointment</button>
+                    </div>
+                )}
+            </div>
+
+            {loading && <div className="pr-loading">Loading clinical data...</div>}
+            {error && <div className="pr-error">{error}</div>}
+
+            {!loading && !error && (
+                <div className="pr-layout">
+                    {/* SIDEBAR */}
+                    <div className="pr-sidebar">
+                        <div className="pr-avatar-wrap">
+                            <div className="pr-avatar">{getInitials(patient.full_name)}</div>
+                            <div className="pr-id-info">
+                                <div className="pr-name">{patient.full_name}</div>
+                                <div className="pr-demo">
+                                    {patient.gender ? patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1) : ""}
+                                    {patient.birth_date ? `, ${formatDOB(patient.birth_date)}` : ""}
+                                </div>
+                                <span className="pr-dx-badge">Type 2 Diabetes</span>
+                            </div>
+                        </div>
+
+                        <hr className="pr-hr" />
+
+                        <div className="pr-info-block">
+                            <div className="pr-info-row">
+                                <div className="pr-info-label">Primary Physician</div>
+                                <div className="pr-info-val">Dr. Emily Chen</div>
+                            </div>
+                            <div className="pr-info-row">
+                                <div className="pr-info-label">Insurance</div>
+                                <div className="pr-info-val">Blue Cross PPO</div>
+                            </div>
+                            <div className="pr-info-row">
+                                <div className="pr-info-label">Insurance ID</div>
+                                <div className="pr-info-val">#BC{patient.id.slice(-10).toUpperCase()}</div>
+                            </div>
+                        </div>
+
+                        <hr className="pr-hr" />
+
+                        <div className="pr-section-title">Allergies</div>
+                        <div className="pr-allergies">
+                            <span className="pr-allergy">💊 Penicillin</span>
+                            <span className="pr-allergy">💊 Sulfa Drugs</span>
+                        </div>
+
+                        <hr className="pr-hr" />
+
+                        <div className="pr-problems-hdr">
+                            <span className="pr-section-title">Latest Problems</span>
+                            <button className="pr-view-all">View All</button>
+                        </div>
+                        <div className="pr-problems">
+                            <div className="pr-problem">
+                                <span className="pr-problem-icon">⚠</span>
+                                <span>Peripheral Neuropathy</span>
+                                <span className="pr-problem-chev">›</span>
+                            </div>
+                            <div className="pr-problem">
+                                <span className="pr-problem-icon">⚠</span>
+                                <span>Hypertension</span>
+                                <span className="pr-problem-chev">›</span>
+                            </div>
+                        </div>
+
+                        <hr className="pr-hr" />
+
+                        <button className="pr-ask-ai">✦ Ask AI</button>
+
+                        {/* ML Risk Preview in Sidebar */}
+                        {mlRisk && (
+                            <button
+                                className="pr-ml-preview"
+                                onClick={() => setTab("ml-risk")}
+                            >
+                                <div className="pr-ml-preview-header">
+                                    <span>🤖 ML Diabetes Risk</span>
+                                    <span style={{ fontSize: "11px", color: "#3b82f6" }}>View details ›</span>
+                                </div>
+                                <div className="pr-ml-preview-score">
+                                    <span style={{ fontSize: "20px", fontWeight: 700, color: riskColor }}>
+                                        {(mlRisk.risk_score * 100).toFixed(1)}%
+                                    </span>
+                                    <span style={{ fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "20px", background: riskBg, color: riskText }}>
+                                        {mlRisk.risk_label} Risk
+                                    </span>
+                                </div>
+                                <div className="pr-ml-bar-bg">
+                                    <div className="pr-ml-bar-fill" style={{ width: `${mlRisk.risk_score * 100}%`, background: riskColor }} />
+                                </div>
+                            </button>
+                        )}
+                    </div>
+
+                    {/* MAIN CONTENT */}
+                    <div className="pr-main">
+                        {tab === "overview" && (
+                            <>
+                                <div className="pr-vitals">
+                                    {[
+                                        { label: "Blood Glucose", value: latestGlucose?.value ?? "—", unit: "mg/dL", change: "+2%", pos: true },
+                                        { label: "Blood Pressure", value: latestBP?.value ?? "—", unit: "mmHg", change: "+3%", pos: true },
+                                        { label: "Heart Rate", value: latestHR?.value ?? "—", unit: "bpm", change: "-1%", pos: false },
+                                        { label: "Weight", value: latestWeight?.value ?? "—", unit: "lbs", change: "+1%", pos: true },
+                                    ].map(v => (
+                                        <div key={v.label} className="pr-vital">
+                                            <div className="pr-vital-label">{v.label}</div>
+                                            <div className="pr-vital-val">{v.value}<span className="pr-vital-unit"> {v.unit}</span></div>
+                                            <span className={`pr-vital-badge ${v.pos ? "pos" : "neg"}`}>{v.change}</span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="pr-card">
+                                    <div className="pr-card-hdr">
+                                        <span className="pr-card-title">📈 Blood Glucose Timeline</span>
+                                        <div className="pr-chart-pills">
+                                            <span className="pr-chart-pill active">Blood Glucose</span>
+                                            <span className="pr-chart-pill">Target Range</span>
+                                            <span className="pr-chart-pill">HbA1c</span>
+                                        </div>
+                                    </div>
+                                    <GlucoseChart data={glucoseHistory} />
+                                </div>
+
+                                <div className="pr-two-col">
+                                    <div className="pr-card">
+                                        <div className="pr-card-title" style={{ marginBottom: "1rem" }}>📊 Labs</div>
+                                        <LabBar label="HbA1c" value={latestHba1c?.value ?? 0} max={7} unit="%" />
+                                        <LabBar label="LDL" value={latestLDL?.value ?? 0} max={100} unit="mg/dL" />
+                                        <LabBar label="HDL" value={latestHDL?.value ?? 0} max={60} unit="mg/dL" />
+                                        <LabBar label="Triglycerides" value={latestTrig?.value ?? 0} max={150} unit="mg/dL" />
+                                        <div className="pr-ai-strip">
+                                            <span className="pr-ai-star">✦</span>
+                                            <div>
+                                                <div className="pr-ai-strip-title">AI Assistant Report</div>
+                                                <div className="pr-ai-strip-text">Your recent labs show good glucose control. Continue monitoring HbA1c levels.</div>
+                                            </div>
+                                            <span style={{ color: "#94a3b8" }}>›</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="pr-card">
+                                        <div className="pr-card-title" style={{ marginBottom: "1rem" }}>⚠ Risk Forecast</div>
+                                        {[
+                                            { name: "Cardiovascular Risk", level: "Moderate", factors: "Blood Pressure, Cholesterol", pct: cvRisk, color: "#3b82f6" },
+                                            { name: "Neuropathy Risk", level: "Low", factors: "Good glucose control", pct: neuroRisk, color: "#10b981" },
+                                            { name: "Retinopathy Risk", level: "Moderate", factors: "Diabetes, Duration", pct: retinoRisk, color: "#f59e0b" },
+                                        ].map(r => (
+                                            <div key={r.name} className="pr-risk">
+                                                <div className="pr-risk-text">
+                                                    <div className="pr-risk-name">{r.name}</div>
+                                                    <div className="pr-risk-level">Level: {r.level}</div>
+                                                    <div className="pr-risk-factors">Contributing Factors: {r.factors}</div>
+                                                </div>
+                                                <CircleRisk pct={r.pct} color={r.color} />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {tab === "labs" && (
+                            <div className="pr-card">
+                                <div className="pr-card-title" style={{ marginBottom: "1rem" }}>Lab Results</div>
+                                {observations.length === 0 ? <p className="pr-empty">No lab results available</p> : (
+                                    <table className="pr-table">
+                                        <thead><tr><th>Test</th><th>Value</th><th>Unit</th><th>Date</th><th>Status</th></tr></thead>
+                                        <tbody>
+                                            {observations.slice(0, 40).map(o => (
+                                                <tr key={o.id}>
+                                                    <td>{o.display}</td>
+                                                    <td style={{ fontWeight: 600 }}>{o.value ?? "—"}</td>
+                                                    <td style={{ color: "#64748b" }}>{o.unit ?? "—"}</td>
+                                                    <td>{formatDate(o.effective_date)}</td>
+                                                    <td><span className="pr-status">{o.status}</span></td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+                        )}
+
+                        {tab === "medications" && (
+                            <div className="pr-card">
+                                <div className="pr-card-title" style={{ marginBottom: "1rem" }}>Medications</div>
+                                {medications.length === 0 ? <p className="pr-empty">No medications on record</p> : (
+                                    <table className="pr-table">
+                                        <thead><tr><th>Medication</th><th>Dosage</th><th>Status</th><th>Prescribed</th></tr></thead>
+                                        <tbody>
+                                            {medications.map(m => (
+                                                <tr key={m.id}>
+                                                    <td style={{ fontWeight: 500 }}>{m.medication_name}</td>
+                                                    <td>{m.dosage_instruction ?? "—"}</td>
+                                                    <td><span className={`pr-status ${m.status === "active" ? "active" : ""}`}>{m.status}</span></td>
+                                                    <td>{formatDate(m.authored_on)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+                        )}
+
+                        {(tab === "visits" || tab === "notes") && (
+                            <div className="pr-card">
+                                <div className="pr-card-title">{tab === "visits" ? "Visits & Appointments" : "Clinical Notes"}</div>
+                                <p className="pr-empty" style={{ marginTop: "1rem" }}>No data available.</p>
+                            </div>
+                        )}
+
+                        {tab === "ml-risk" && (
+                            <div>
+                                <div className="pr-card" style={{ marginBottom: "1.25rem" }}>
+                                    <div className="pr-card-title" style={{ marginBottom: "1.5rem" }}>🤖 ML Diabetes Risk Analysis</div>
+                                    {!mlRisk ? (
+                                        <p className="pr-empty">Loading ML prediction...</p>
+                                    ) : (
+                                        <>
+                                            {/* Big score display */}
+                                            <div className="pr-ml-hero">
+                                                <CircleRiskLarge
+                                                    pct={Math.round(mlRisk.risk_score * 100)}
+                                                    color={riskColor}
+                                                    label={`${mlRisk.risk_label} Risk`}
+                                                />
+                                                <div className="pr-ml-hero-info">
+                                                    <div style={{ fontSize: "13px", color: "#64748b", marginBottom: "1rem" }}>
+                                                        This score is generated by an XGBoost machine learning model trained on clinical diabetes data.
+                                                        It uses the patient's current vitals and lab values to estimate diabetes risk.
+                                                    </div>
+                                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                                                        {mlRisk.inputs && Object.entries(mlRisk.inputs).map(([k, v]) => (
+                                                            <div key={k} style={{ background: "#f8fafc", borderRadius: "8px", padding: "10px 12px", border: "1px solid #f1f5f9" }}>
+                                                                <div style={{ fontSize: "11px", color: "#94a3b8", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                                                                    {k.replace(/_/g, " ")}
+                                                                </div>
+                                                                <div style={{ fontSize: "15px", fontWeight: 600, color: "#1e293b", marginTop: "2px" }}>
+                                                                    {typeof v === "number" ? v.toFixed(1) : v}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {mlRisk && (
+                                    <div className="pr-card">
+                                        <div className="pr-card-title" style={{ marginBottom: "1.25rem" }}>Top Risk Factors</div>
+                                        <div style={{ fontSize: "13px", color: "#64748b", marginBottom: "1rem" }}>
+                                            Features ranked by their influence on this patient's risk score.
+                                        </div>
+                                        {mlRisk.top_factors.map((f, i) => (
+                                            <div key={f.feature} style={{ marginBottom: "14px" }}>
+                                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+                                                    <span style={{ fontSize: "13px", fontWeight: 500, color: "#1e293b" }}>
+                                                        {i + 1}. {f.feature.replace(/_/g, " ")}
+                                                    </span>
+                                                    <span style={{ fontSize: "13px", fontWeight: 600, color: riskColor }}>
+                                                        {(f.importance * 100).toFixed(1)}%
+                                                    </span>
+                                                </div>
+                                                <div style={{ height: "8px", background: "#f1f5f9", borderRadius: "4px", overflow: "hidden" }}>
+                                                    <div style={{
+                                                        height: "100%", borderRadius: "4px",
+                                                        width: `${(f.importance / mlRisk.top_factors[0].importance) * 100}%`,
+                                                        background: i === 0 ? riskColor : i === 1 ? "#3b82f6" : "#94a3b8"
+                                                    }} />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
