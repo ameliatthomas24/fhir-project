@@ -1,25 +1,56 @@
 services:
+  db:
+    image: postgres:15
+    container_name: postgres-db
+    environment:
+      POSTGRES_DB: hapi_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
   hapi-fhir:
-    image: hapiproject/hapi:v7.6.0
+    image: hapiproject/hapi:latest
+    container_name: hapi-fhir-server
     ports:
       - "8080:8080"
-    configs:
-      - source: hapi
-        target: /data/hapi/application.yaml
-    volumes:
-      - hapi-data:/data/hapi
     environment:
-      HAPI_FHIR_FHIR_VERSION: R4
-      HAPI_FHIR_SECURITY_ENABLED: "false"
-      # JDBC settings to make HAPI persist FHIR resources into Postgres
-      # For local testing these point at the same postgres service below.
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db.lrigppqtqfztybxegils.supabase.co:5432/postgres
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: CS6440healt
-      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://db:5432/hapi_db"
+      SPRING_DATASOURCE_USERNAME: "admin"
+      SPRING_DATASOURCE_PASSWORD: "password123"
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: "org.postgresql.Driver"
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: "ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgresDialect"
+    depends_on:
+      - db
+
+  backend:
+    build:
+      context: ../backend
+    container_name: hapi-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - FHIR_BASE_URL=http://hapi-fhir:8080/fhir
+      - DATA_PATH=/app/data_files
+      - PYTHONPATH=/app
+    volumes:
+      # This maps your local Synthea data into the container
+      - ../../data/output/fhir:/app/data_files 
+    depends_on:
+      - hapi-fhir
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --log-level trace
+  frontend:
+    build:
+      context: ../frontend
+    container_name: hapi-frontend
+    ports:
+      - "3000:3000" # Maps your computer's 3000 to the container's 3000
+    environment:
+      - VITE_PORT=3000
+    depends_on:
+      - backend
 
 volumes:
-  pgdata:
-
+  postgres_data:

@@ -181,10 +181,14 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
     }, [patient.id]);
 
     useEffect(() => {
-        fetch(`http://127.0.0.1:8000/predict/${patient.id}`)
-            .then(r => r.json())
+        // Vite will proxy this to http://hapi-backend:8000/predict/...
+        fetch(`/predict/${patient.id}`)
+            .then(r => {
+                if (!r.ok) throw new Error("Backend Error");
+                return r.json();
+            })
             .then(data => setMlRisk(data))
-            .catch(() => { });
+            .catch((err) => console.error("Prediction fetch failed:", err));
     }, [patient.id]);
 
     const latestGlucose = latestByCode(observations, GLUCOSE_CODES);
