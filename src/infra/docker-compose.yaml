@@ -1,4 +1,19 @@
 services:
+
+  services:
+  nginx-proxy:
+    image: 'jc21/nginx-proxy-manager:latest'
+    container_name: nginx-proxy
+    ports:
+      - '80:80'
+      - '81:81' # This is the admin dashboard port
+      - '443:443'
+    volumes:
+      - ./data:/data
+      - ./letsencrypt:/etc/letsencrypt
+    restart: always
+
+  # ... keep your existing db, hapi, backend, and frontend services below ...
   db:
     image: postgres:15
     container_name: postgres-db
@@ -51,6 +66,8 @@ services:
       - VITE_PORT=3000
     depends_on:
       - backend
+    
+    
 
 volumes:
   postgres_data:
