@@ -7,6 +7,10 @@ export default defineConfig({
     host: true,
     port: 3000,
     strictPort: true,
+        allowedHosts: [
+      'healthybean.me',
+      'www.healthybean.me'
+    ],
     proxy: {
       "/patients": {
         // Change 'localhost' to the service name in your docker-compose
