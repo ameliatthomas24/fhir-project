@@ -3,7 +3,7 @@ import pandas as pd
 from pathlib import Path
 from pydantic import BaseModel
 
-MODEL_FILE_PATH = Path(__file__).parent / "model.pkl"
+MODEL_FILE_PATH = os.path.join("/app", "ml", "model.pkl")
 
 # Load model 
 try:
