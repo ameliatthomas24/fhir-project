@@ -1,15 +1,14 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from typing import Optional
 
+from auth import get_current_user, require_patient_access
 from fhir_client import get_resource, search_resource, extract_bundle_entries
 from models import PatientSummary
 
 router = APIRouter()
 
-# Helpers 
 
 def _simplify_patient(raw: dict) -> PatientSummary:
-    # Map a raw FHIR Patient resource 
     name_list = raw.get("name", [])
     official = next((n for n in name_list if n.get("use") == "official"), None)
     name_entry = official or (name_list[0] if name_list else {})
@@ -38,14 +37,15 @@ def _simplify_patient(raw: dict) -> PatientSummary:
     )
 
 
-# Routes
-
 @router.get("", response_model=list[PatientSummary])
 async def list_patients(
     name: Optional[str] = Query(None, description="Partial name search"),
     count: int = Query(20, alias="_count", ge=1, le=100),
+    current_user: dict = Depends(get_current_user),
 ):
-    # Return a list of patients from the FHIR server
+    if current_user["role"] != "clinician":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Clinician access required")
+
     params: dict = {"_count": count}
     if name:
         params["name"] = name
@@ -56,7 +56,10 @@ async def list_patients(
 
 
 @router.get("/{patient_id}", response_model=PatientSummary)
-async def get_patient(patient_id: str):
-    #Return a single patient by FHIR resource id
+async def get_patient(
+    patient_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    require_patient_access(patient_id, current_user)
     raw = await get_resource("Patient", patient_id)
     return _simplify_patient(raw)

@@ -1,16 +1,14 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from typing import Optional
 
+from auth import get_current_user, require_patient_access
 from fhir_client import search_resource, extract_bundle_entries
 from models import MedicationSummary
 
 router = APIRouter()
 
-# Helpers 
 
 def _simplify_medication(raw: dict) -> MedicationSummary:
-    #Map a raw FHIR MedicationRequest 
-
     med_name = "Unknown"
     if "medicationCodeableConcept" in raw:
         codings = raw["medicationCodeableConcept"].get("coding", [{}])
@@ -28,9 +26,7 @@ def _simplify_medication(raw: dict) -> MedicationSummary:
     prescriber_id = requester_ref.split("/")[-1] if "/" in requester_ref else None
 
     dosage_instructions = raw.get("dosageInstruction", [])
-    dosage_text = None
-    if dosage_instructions:
-        dosage_text = dosage_instructions[0].get("text")
+    dosage_text = dosage_instructions[0].get("text") if dosage_instructions else None
 
     return MedicationSummary(
         id=raw.get("id", ""),
@@ -61,14 +57,13 @@ async def _fetch_medications(
     return [_simplify_medication(m) for m in entries]
 
 
-# Routes
-
 @router.get("/{patient_id}", response_model=list[MedicationSummary])
 async def get_medications(
     patient_id: str,
     count: int = Query(50, alias="_count", ge=1, le=200),
+    current_user: dict = Depends(get_current_user),
 ):
-    """Return all medication requests for a patient."""
+    require_patient_access(patient_id, current_user)
     return await _fetch_medications(patient_id, count=count)
 
 
@@ -76,6 +71,7 @@ async def get_medications(
 async def get_active_medications(
     patient_id: str,
     count: int = Query(50, alias="_count", ge=1, le=200),
+    current_user: dict = Depends(get_current_user),
 ):
-    #Return only active prescriptions 
+    require_patient_access(patient_id, current_user)
     return await _fetch_medications(patient_id, status="active", count=count)

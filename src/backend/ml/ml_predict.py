@@ -2,6 +2,7 @@ import pickle
 import pandas as pd
 from pathlib import Path
 from pydantic import BaseModel
+import os
 
 MODEL_FILE_PATH = os.path.join("/app", "ml", "model.pkl")
 

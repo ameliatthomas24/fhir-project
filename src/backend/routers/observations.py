@@ -1,21 +1,20 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from typing import Optional
 
+from auth import get_current_user, require_patient_access
 from fhir_client import search_resource, extract_bundle_entries
 from models import ObservationPoint
 
 router = APIRouter()
 
 LOINC = {
-    "glucose":         ["15074-8", "2339-0"],   # Glucose 
-    "hba1c":           ["4548-4", "17856-6"],   # Hgb 
-    "blood_pressure":  ["55284-4", "8480-6", "8462-4"],  # BP panel, systolic, diastolic
+    "glucose":        ["15074-8", "2339-0"],
+    "hba1c":          ["4548-4", "17856-6"],
+    "blood_pressure": ["55284-4", "8480-6", "8462-4"],
 }
 
-# Helpers 
 
 def _simplify_observation(raw: dict) -> ObservationPoint:
-    # Map a raw FHIR Observation 
     coding = raw.get("code", {}).get("coding", [{}])[0]
     code = coding.get("code", "")
     display = coding.get("display") or raw.get("code", {}).get("text", "Unknown")
@@ -24,7 +23,6 @@ def _simplify_observation(raw: dict) -> ObservationPoint:
     unit = value_qty.get("unit") or value_qty.get("code")
     effective = raw.get("effectiveDateTime") or raw.get("effectivePeriod", {}).get("start")
 
-    # Patient reference 
     subject_ref = raw.get("subject", {}).get("reference", "")
     patient_id = subject_ref.split("/")[-1] if "/" in subject_ref else subject_ref
 
@@ -58,14 +56,13 @@ async def _fetch_observations(
     return [_simplify_observation(o) for o in entries]
 
 
-# Routes 
-
 @router.get("/{patient_id}", response_model=list[ObservationPoint])
 async def get_observations(
     patient_id: str,
     count: int = Query(50, alias="_count", ge=1, le=200),
+    current_user: dict = Depends(get_current_user),
 ):
-    #Return all observations for a patient
+    require_patient_access(patient_id, current_user)
     return await _fetch_observations(patient_id, count=count)
 
 
@@ -73,8 +70,9 @@ async def get_observations(
 async def get_glucose(
     patient_id: str,
     count: int = Query(50, alias="_count", ge=1, le=200),
+    current_user: dict = Depends(get_current_user),
 ):
-    # Return blood glucose 
+    require_patient_access(patient_id, current_user)
     return await _fetch_observations(patient_id, codes=LOINC["glucose"], count=count)
 
 
@@ -82,8 +80,9 @@ async def get_glucose(
 async def get_hba1c(
     patient_id: str,
     count: int = Query(50, alias="_count", ge=1, le=200),
+    current_user: dict = Depends(get_current_user),
 ):
-    # Return HbA1c readings 
+    require_patient_access(patient_id, current_user)
     return await _fetch_observations(patient_id, codes=LOINC["hba1c"], count=count)
 
 
@@ -91,6 +90,7 @@ async def get_hba1c(
 async def get_blood_pressure(
     patient_id: str,
     count: int = Query(50, alias="_count", ge=1, le=200),
+    current_user: dict = Depends(get_current_user),
 ):
-    # Return blood pressure 
+    require_patient_access(patient_id, current_user)
     return await _fetch_observations(patient_id, codes=LOINC["blood_pressure"], count=count)
