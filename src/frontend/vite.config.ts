@@ -4,11 +4,28 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: true,
     port: 3000,
+    strictPort: true,
+    allowedHosts: [
+      'healthybean.me',
+      'www.healthybean.me'
+    ],
     proxy: {
-      "/patients": "http://localhost:8000",
-      "/observations": "http://localhost:8000",
-      "/medications": "http://localhost:8000",
+      "/patients": {
+        // Change 'localhost' to the service name in your docker-compose
+        target: "http://hapi-backend:8000", 
+        changeOrigin: true,
+      },
+      "/predict": {
+        target: "http://hapi-backend:8000",
+        changeOrigin: true,
+      },
+      "/recommendations": {
+        target: "http://hapi-backend:8000",
+        changeOrigin: true,
+      },
     },
   },
 });
+

@@ -4,8 +4,8 @@ import json
 
 # --- CONFIG ---
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.normpath(os.path.join(SCRIPT_DIR, "..", "..", "data", "output", "fhir"))
-FHIR_URL = "http://localhost:8080/fhir"
+DATA_PATH = os.getenv("DATA_PATH", "/app/data_files") 
+FHIR_URL = os.getenv("FHIR_BASE_URL", "http://hapi-fhir-server:8080/fhir")
 
 def start_upload():
     if not os.path.exists(DATA_PATH):
