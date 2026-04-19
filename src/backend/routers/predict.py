@@ -23,8 +23,11 @@ except Exception as e:
     logger.error(f"❌ Model load failed: {e}")
     model_pipeline = None
 
+
+
 @router.get("/{patient_id}")
 async def get_prediction(patient_id: str):
+    
     try:
         # 1. Fetch Patient
         p_resp = requests.get(f"{FHIR_URL}/Patient/{patient_id}", timeout=5)
@@ -58,7 +61,7 @@ async def get_prediction(patient_id: str):
         )
 
         # 4. Run Assessment
-        return generate_risk_assessment(profile)
+        return generate_risk_assessment(profile,model_pipeline)
 
     except requests.exceptions.ConnectionError:
         raise HTTPException(status_code=503, detail=f"Cannot reach HAPI server at {FHIR_URL}")
