@@ -9,12 +9,13 @@ MODEL_FILE_PATH = os.path.join("/app", "ml", "model.pkl")
 try:
     with open(MODEL_FILE_PATH, "rb") as model_file:
         prediction_pipeline = pickle.load(model_file)
+    print(f"Model loaded successfully")
 except FileNotFoundError:
     prediction_pipeline = None
-    print(f"Model file missing")
+    print(f"Model file not found at: {MODEL_FILE_PATH}")
 except Exception as error:
     prediction_pipeline = None
-    print(f"Failed to load model")
+    print(f"Failed to load model: {error}")  
 
 # Feature names 
 CATEGORICAL_COLUMNS = ["gender", "smoking_history"]
