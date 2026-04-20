@@ -2,14 +2,13 @@ import os
 import requests
 import json
 
-# --- CONFIG ---
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.getenv("DATA_PATH", "/app/data_files") 
 FHIR_URL = os.getenv("FHIR_BASE_URL", "http://hapi-fhir-server:8080/fhir")
 
 def start_upload():
     if not os.path.exists(DATA_PATH):
-        print(f"❌ Folder not found: {DATA_PATH}")
+        print(f" Folder not found: {DATA_PATH}")
         return
 
     json_files = [f for f in os.listdir(DATA_PATH) if f.endswith(".json")]
@@ -28,15 +27,15 @@ def start_upload():
                 if entry:
                     patient = entry['resource']
                     p_id = patient.get('id')
-                    # Use PUT to ensure IDs match your local frontend expectations
+                    # Use PUT to ensure IDs match local frontend 
                     resp = requests.put(f"{FHIR_URL}/Patient/{p_id}", json=patient, timeout=5)
                     
                     if resp.status_code in [200, 201]:
                         success += 1
-                        print(f"[{i+1}] ✅ {p_id}")
+                        print(f"[{i+1}] {p_id}")
                     else:
                         fail += 1
-                        print(f"[{i+1}] ❌ {p_id}: {resp.status_code}")
+                        print(f"[{i+1}] {p_id}: {resp.status_code}")
 
             except Exception as e:
                 fail += 1
