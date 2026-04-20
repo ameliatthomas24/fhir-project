@@ -12,9 +12,20 @@ export default defineConfig({
       'www.healthybean.me'
     ],
     proxy: {
+      "/auth": {
+        target: "http://hapi-backend:8000",
+        changeOrigin: true,
+      },
       "/patients": {
-        // Change 'localhost' to the service name in your docker-compose
-        target: "http://hapi-backend:8000", 
+        target: "http://hapi-backend:8000",
+        changeOrigin: true,
+      },
+      "/observations": {
+        target: "http://hapi-backend:8000",
+        changeOrigin: true,
+      },
+      "/medications": {
+        target: "http://hapi-backend:8000",
         changeOrigin: true,
       },
       "/predict": {
@@ -32,4 +43,3 @@ export default defineConfig({
     },
   },
 });
-
