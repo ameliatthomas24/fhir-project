@@ -2,6 +2,7 @@
 import { getActiveMedications, getObservations } from "../api/client";
 import type { MedicationSummary, ObservationPoint, PatientSummary } from "../types";
 import CareRecommendations from "./CareRecommendations";
+import ChatWidget from "./ChatWidget";
 import "./PatientRecord.css";
 
 interface Props {
@@ -171,6 +172,7 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [mlRisk, setMlRisk] = useState<MlRisk | null>(null);
+    const [chatOpen, setChatOpen] = useState(false);
 
     useEffect(() => {
         setLoading(true);
@@ -309,7 +311,7 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
 
                         <hr className="pr-hr" />
 
-                        <button className="pr-ask-ai">✦ Ask AI</button>
+                        <button className="pr-ask-ai" onClick={() => setChatOpen(true)}>✦ Ask AI</button>
 
                         {/* ML Risk Preview in Sidebar */}
                         {mlRisk && (
@@ -532,6 +534,12 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                     </div>
                 </div>
             )}
+
+            <ChatWidget
+                open={chatOpen}
+                onClose={() => setChatOpen(false)}
+                patientId={patient.id}
+            />
         </div>
     );
 }
