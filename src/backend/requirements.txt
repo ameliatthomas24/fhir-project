@@ -6,7 +6,7 @@ python-dotenv>=1.0.0
 pytest>=8.0.0
 google-generativeai>=0.8.0
 joblib
-scikit-learn
+scikit-learn==1.6.1
 xgboost
 numpy
 pandas

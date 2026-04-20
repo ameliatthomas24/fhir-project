@@ -22,12 +22,10 @@ except Exception as e:
     model_pipeline = None
 
 
+
 @router.get("/{patient_id}")
-async def get_prediction(
-    patient_id: str,
-    current_user: dict = Depends(get_current_user),
-):
-    require_patient_access(patient_id, current_user)
+async def get_prediction(patient_id: str):
+    
     try:
         p_resp = requests.get(f"{FHIR_URL}/Patient/{patient_id}", timeout=5)
         if p_resp.status_code != 200:

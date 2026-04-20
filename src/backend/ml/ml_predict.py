@@ -4,18 +4,6 @@ from pathlib import Path
 from pydantic import BaseModel
 import os
 
-MODEL_FILE_PATH = os.path.join("/app", "ml", "model.pkl")
-
-# Load model 
-try:
-    with open(MODEL_FILE_PATH, "rb") as model_file:
-        prediction_pipeline = pickle.load(model_file)
-except FileNotFoundError:
-    prediction_pipeline = None
-    print(f"Model file missing")
-except Exception as error:
-    prediction_pipeline = None
-    print(f"Failed to load model")
 
 # Feature names 
 CATEGORICAL_COLUMNS = ["gender", "smoking_history"]
@@ -40,7 +28,7 @@ class DiabetesPrediction(BaseModel):
 
 # Inference 
 # Score a single patient and return their diabetes risk
-def generate_risk_assessment(patient_profile: PatientProfile) -> DiabetesPrediction:
+def generate_risk_assessment(patient_profile: PatientProfile, pipeline) -> DiabetesPrediction:
     patient_input_data = pd.DataFrame([{
         "gender":              patient_profile.gender,
         "smoking_history":     patient_profile.smoking_history,
@@ -53,7 +41,7 @@ def generate_risk_assessment(patient_profile: PatientProfile) -> DiabetesPredict
     }])
 
     # Risk probability
-    probability_score = float(prediction_pipeline.predict_proba(patient_input_data)[0][1])
+    probability_score = float(pipeline.predict_proba(patient_input_data)[0][1])
 
     # Risk label
     if probability_score < 0.3:
@@ -64,8 +52,8 @@ def generate_risk_assessment(patient_profile: PatientProfile) -> DiabetesPredict
         risk_level = "High"
 
     # Top features 
-    feature_processor = prediction_pipeline.named_steps["pre"]
-    trained_classifier = prediction_pipeline.named_steps["clf"]
+    feature_processor = pipeline.named_steps["pre"]
+    trained_classifier = pipeline.named_steps["clf"]
 
     processed_categorical_names = list(
         feature_processor.named_transformers_["cat"]
