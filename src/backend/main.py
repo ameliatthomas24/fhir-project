@@ -5,7 +5,7 @@ load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
  
-from routers import patients, observations, medications, recommendations , predict
+from routers import patients, observations, medications, recommendations, predict, chat
  
 app = FastAPI(
     title="Diabetes Management Portal - FHIR Backend",
@@ -25,6 +25,7 @@ app.include_router(observations.router, prefix="/observations", tags=["Observati
 app.include_router(medications.router, prefix="/medications", tags=["Medications"])
 app.include_router(recommendations.router, prefix="/recommendations", tags=["Recommendations"])
 app.include_router(predict.router, prefix="/predict", tags=["ML"])
+app.include_router(chat.router, prefix="/chat", tags=["Chat"])
  
 @app.get("/health", tags=["Health"])
 def health_check():
