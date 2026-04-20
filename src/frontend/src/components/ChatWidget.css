@@ -40,6 +40,30 @@
     gap: 8px;
 }
 
+.cw-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.cw-minimize {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 3px 7px;
+    border-radius: 5px;
+    transition: all 0.15s;
+    margin-bottom: 3px;
+}
+
+.cw-minimize:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.12);
+}
+
 .cw-header-star {
     font-size: 13px;
     color: #3b82f6;
@@ -49,6 +73,50 @@
     font-size: 14px;
     font-weight: 600;
     letter-spacing: -0.01em;
+}
+
+.cw-minimized {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #0f172a;
+    color: white;
+    padding: 10px 16px;
+    border-radius: 24px;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    transition: background 0.15s;
+    animation: cw-slide-up 0.2s ease-out;
+}
+
+.cw-minimized:hover {
+    background: #1e293b;
+}
+
+.cw-min-star {
+    font-size: 12px;
+    color: #3b82f6;
+}
+
+.cw-min-label {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.cw-min-badge {
+    background: #3b82f6;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 20px;
+    min-width: 18px;
+    text-align: center;
 }
 
 .cw-close {

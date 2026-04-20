@@ -44,3 +44,19 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
 }
+
+export interface Note {
+  id: string;
+  content: string;
+  createdAt: string;
+  author: "clinician" | "patient";
+}
+
+export interface ScheduledAppointment {
+  id: string;
+  date: string;
+  time: string;
+  type: "in-person" | "virtual";
+  reason: string;
+  status: "upcoming";
+}
