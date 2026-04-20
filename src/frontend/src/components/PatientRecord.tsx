@@ -1,8 +1,10 @@
 ﻿import { useEffect, useState, useRef } from "react";
 import { getActiveMedications, getObservations } from "../api/client";
-import type { MedicationSummary, ObservationPoint, PatientSummary } from "../types";
+import type { MedicationSummary, Note, ObservationPoint, PatientSummary, ScheduledAppointment } from "../types";
 import CareRecommendations from "./CareRecommendations";
 import ChatWidget from "./ChatWidget";
+import AppointmentModal from "./AppointmentModal";
+import NoteModal from "./NoteModal";
 import "./PatientRecord.css";
 
 interface Props {
@@ -34,7 +36,17 @@ function byCode(obs: ObservationPoint[], codes: Set<string>) {
 
 function formatDate(d?: string) {
     if (!d) return "—";
-    return new Date(d).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
+    const [year, month, day] = d.split("-").map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+}
+
+function formatTime(t: string) {
+    if (!t) return "—";
+    const [h, m] = t.split(":");
+    const hour = parseInt(h, 10);
+    const ampm = hour >= 12 ? "PM" : "AM";
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${m} ${ampm}`;
 }
 
 function formatDOB(bd?: string) {
@@ -173,6 +185,34 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
     const [error, setError] = useState<string | null>(null);
     const [mlRisk, setMlRisk] = useState<MlRisk | null>(null);
     const [chatOpen, setChatOpen] = useState(false);
+    const [scheduleOpen, setScheduleOpen] = useState(false);
+    const [noteOpen, setNoteOpen] = useState(false);
+    const [appointments, setAppointments] = useState<ScheduledAppointment[]>([]);
+    const [notes, setNotes] = useState<Note[]>([]);
+    const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!toastMsg) return;
+        const t = setTimeout(() => setToastMsg(null), 3500);
+        return () => clearTimeout(t);
+    }, [toastMsg]);
+
+    function handleSaveNote(content: string) {
+        setNotes(prev => [{
+            id: crypto.randomUUID(),
+            content,
+            createdAt: new Date().toISOString(),
+            author: portal,
+        }, ...prev]);
+        setToastMsg("Note saved.");
+        setTab("notes");
+    }
+
+    function handleSchedule(appt: ScheduledAppointment) {
+        setAppointments(prev => [appt, ...prev]);
+        setToastMsg(`Appointment confirmed for ${formatDate(appt.date)} at ${formatTime(appt.time)}`);
+        setTab("visits");
+    }
 
     useEffect(() => {
         setLoading(true);
@@ -237,13 +277,13 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                         </button>
                     ))}
                 </div>
-                {portal === "clinician" && (
-                    <div className="pr-actions">
+                <div className="pr-actions">
+                    {portal === "clinician" && (
                         <button className="pr-btn pr-btn-primary">✉ Message Patient</button>
-                        <button className="pr-btn">+ Add Note</button>
-                        <button className="pr-btn">📅 Schedule Appointment</button>
-                    </div>
-                )}
+                    )}
+                    <button className="pr-btn" onClick={() => setNoteOpen(true)}>+ Add Note</button>
+                    <button className="pr-btn" onClick={() => setScheduleOpen(true)}>📅 Schedule Appointment</button>
+                </div>
             </div>
 
             {loading && <div className="pr-loading">Loading clinical data...</div>}
@@ -450,10 +490,68 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                             </div>
                         )}
 
-                        {(tab === "visits" || tab === "notes") && (
+                        {tab === "visits" && (
                             <div className="pr-card">
-                                <div className="pr-card-title">{tab === "visits" ? "Visits & Appointments" : "Clinical Notes"}</div>
-                                <p className="pr-empty" style={{ marginTop: "1rem" }}>No data available.</p>
+                                <div className="pr-card-title" style={{ marginBottom: "1rem" }}>Visits &amp; Appointments</div>
+                                {appointments.length === 0 ? (
+                                    <p className="pr-empty" style={{ marginTop: "1rem" }}>No upcoming appointments. Use the Schedule button to book one.</p>
+                                ) : (
+                                    <div className="pr-appt-list">
+                                        {appointments.map(appt => (
+                                            <div key={appt.id} className="pr-appt-card">
+                                                <div className="pr-appt-header">
+                                                    <div>
+                                                        <div className="pr-appt-date">
+                                                            {formatDate(appt.date)} &nbsp;·&nbsp; {formatTime(appt.time)}
+                                                        </div>
+                                                        <div className="pr-appt-doctor">Dr. Emily Chen &mdash; Primary Care</div>
+                                                    </div>
+                                                    <div className="pr-appt-badges">
+                                                        <span className={`pr-appt-type ${appt.type}`}>
+                                                            {appt.type === "virtual" ? "💻 Virtual" : "🏥 In-Person"}
+                                                        </span>
+                                                        <span className="pr-appt-status">Upcoming</span>
+                                                    </div>
+                                                </div>
+                                                <div className="pr-appt-detail">
+                                                    <span className="pr-appt-reason">{appt.reason}</span>
+                                                    <span className="pr-appt-location">
+                                                        {appt.type === "in-person"
+                                                            ? "📍 Main Clinic — 450 Medical Dr, Suite 200"
+                                                            : "🔗 Video call link will be sent to your email"}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {tab === "notes" && (
+                            <div className="pr-card">
+                                <div className="pr-card-title" style={{ marginBottom: "1rem" }}>Clinical Notes</div>
+                                {notes.length === 0 ? (
+                                    <p className="pr-empty" style={{ marginTop: "1rem" }}>No notes yet. Use the Add Note button to create one.</p>
+                                ) : (
+                                    <div className="pr-note-list">
+                                        {notes.map(note => (
+                                            <div key={note.id} className="pr-note-card">
+                                                <div className="pr-note-meta">
+                                                    <span className={`pr-note-author ${note.author}`}>
+                                                        {note.author === "clinician" ? "🩺 Clinician Note" : "👤 Patient Note"}
+                                                    </span>
+                                                    <span className="pr-note-ts">
+                                                        {new Date(note.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                                        {" "}·{" "}
+                                                        {new Date(note.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                                                    </span>
+                                                </div>
+                                                <p className="pr-note-content">{note.content}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -540,6 +638,25 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                 onClose={() => setChatOpen(false)}
                 patientId={patient.id}
             />
+
+            <AppointmentModal
+                open={scheduleOpen}
+                onClose={() => setScheduleOpen(false)}
+                onSchedule={handleSchedule}
+            />
+
+            <NoteModal
+                open={noteOpen}
+                onClose={() => setNoteOpen(false)}
+                onSave={handleSaveNote}
+            />
+
+            {toastMsg && (
+                <div className="pr-toast">
+                    <span className="pr-toast-icon">✅</span>
+                    {toastMsg}
+                </div>
+            )}
         </div>
     );
 }

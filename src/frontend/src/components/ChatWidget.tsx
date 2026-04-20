@@ -16,16 +16,24 @@ export default function ChatWidget({ open, onClose, patientId }: Props) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
+    const [minimized, setMinimized] = useState(false);
     const bottomRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
-        if (open) inputRef.current?.focus();
-    }, [open]);
+        if (open && !minimized) inputRef.current?.focus();
+    }, [open, minimized]);
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages, loading]);
+
+    function handleClose() {
+        setMessages([]);
+        setInput("");
+        setMinimized(false);
+        onClose();
+    }
 
     async function handleSend() {
         const text = input.trim();
@@ -59,6 +67,18 @@ export default function ChatWidget({ open, onClose, patientId }: Props) {
 
     if (!open) return null;
 
+    if (minimized) {
+        return (
+            <div className="cw-minimized" onClick={() => setMinimized(false)}>
+                <span className="cw-min-star">✦</span>
+                <span className="cw-min-label">Health Assistant</span>
+                {messages.length > 0 && (
+                    <span className="cw-min-badge">{messages.length}</span>
+                )}
+            </div>
+        );
+    }
+
     return (
         <div className="cw-overlay">
             <div className="cw-window">
@@ -67,7 +87,10 @@ export default function ChatWidget({ open, onClose, patientId }: Props) {
                         <span className="cw-header-star">✦</span>
                         <span className="cw-header-title">Health Assistant</span>
                     </div>
-                    <button className="cw-close" onClick={onClose} aria-label="Close chat">✕</button>
+                    <div className="cw-header-actions">
+                        <button className="cw-minimize" onClick={() => setMinimized(true)} aria-label="Minimize chat">—</button>
+                        <button className="cw-close" onClick={handleClose} aria-label="Close chat">✕</button>
+                    </div>
                 </div>
 
                 <div className="cw-disclaimer">
