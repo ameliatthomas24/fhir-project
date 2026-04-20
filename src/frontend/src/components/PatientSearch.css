@@ -1,33 +1,42 @@
-.search-container { /* amelia */
+* {
+    box-sizing: border-box;
+}
+
+.search-container {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
 }
 
 .search-header {
-    margin-bottom: 1.5rem;
+    margin-bottom: 2rem;
+    text-align: center;
 }
 
 .search-title {
-    font-size: 24px;
+    font-size: 28px;
     font-weight: 700;
     color: #0f172a;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
+    margin-bottom: 6px;
 }
 
 .search-subtitle {
-    font-size: 14px;
+    font-size: 15px;
     color: #64748b;
-    margin-top: 4px;
 }
 
 .search-card {
     background: white;
-    border-radius: 12px;
+    border-radius: 16px;
     border: 1px solid #e2e8f0;
-    padding: 1.5rem;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    padding: 1.75rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 
 .search-card-title {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
     color: #1e293b;
     margin-bottom: 1rem;
@@ -36,7 +45,7 @@
 .search-form {
     display: flex;
     gap: 10px;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
 }
 
 .search-input-wrap {
@@ -48,26 +57,27 @@
 
 .search-icon {
     position: absolute;
-    left: 12px;
+    left: 13px;
     color: #94a3b8;
     pointer-events: none;
 }
 
 .search-input {
     width: 100%;
-    padding: 9px 12px 9px 38px;
+    padding: 11px 14px 11px 40px;
     border: 1px solid #e2e8f0;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 14px;
     color: #1e293b;
     background: #f8fafc;
     outline: none;
-    transition: border-color 0.15s, background 0.15s;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 
     .search-input:focus {
         border-color: #3b82f6;
         background: white;
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
     }
 
     .search-input::placeholder {
@@ -75,20 +85,24 @@
     }
 
 .search-btn {
-    padding: 9px 20px;
+    padding: 11px 24px;
     background: #3b82f6;
     color: white;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
-    transition: background 0.15s;
+    transition: background 0.15s, transform 0.1s;
 }
 
     .search-btn:hover:not(:disabled) {
         background: #2563eb;
+    }
+
+    .search-btn:active:not(:disabled) {
+        transform: scale(0.98);
     }
 
     .search-btn:disabled {
@@ -100,6 +114,10 @@
     font-size: 13px;
     color: #ef4444;
     margin-top: 8px;
+    padding: 8px 12px;
+    background: #fef2f2;
+    border-radius: 8px;
+    border: 1px solid #fecaca;
 }
 
 .search-empty {
@@ -107,50 +125,61 @@
     color: #64748b;
     margin-top: 12px;
     text-align: center;
-    padding: 1rem;
+    padding: 1.5rem;
 }
 
 .search-empty-state {
     text-align: center;
-    padding: 2rem 1rem;
+    padding: 2.5rem 1rem;
     color: #94a3b8;
     font-size: 14px;
     border-top: 1px solid #f1f5f9;
     margin-top: 1rem;
 }
 
+    .search-empty-state::before {
+        content: "??";
+        display: block;
+        font-size: 28px;
+        margin-bottom: 10px;
+    }
+
 .results-list {
     list-style: none;
     border-top: 1px solid #f1f5f9;
-    margin-top: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 0.5rem;
 }
 
 .result-item {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 8px;
+    padding: 10px 8px;
     cursor: pointer;
-    border-radius: 8px;
+    border-radius: 10px;
     transition: background 0.1s;
+    border: 1px solid transparent;
 }
 
     .result-item:hover {
         background: #f8fafc;
+        border-color: #e2e8f0;
     }
 
 .result-avatar {
-    width: 38px;
-    height: 38px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
-    background: #dbeafe;
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
     color: #1d4ed8;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 700;
     flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(59,130,246,0.2);
 }
 
 .result-info {
@@ -161,7 +190,7 @@
 .result-name {
     display: block;
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 600;
     color: #1e293b;
 }
 
@@ -175,4 +204,10 @@
 .result-arrow {
     color: #cbd5e1;
     flex-shrink: 0;
+    transition: transform 0.15s, color 0.15s;
+}
+
+.result-item:hover .result-arrow {
+    color: #3b82f6;
+    transform: translateX(2px);
 }

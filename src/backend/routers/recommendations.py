@@ -5,9 +5,10 @@ from datetime import date
 from typing import Optional
 
 import google.generativeai as genai
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from auth import get_current_user, require_patient_access
 from fhir_client import extract_bundle_entries, get_resource, search_resource
 
 router = APIRouter()
@@ -64,12 +65,11 @@ def _age(birth_date: Optional[str]) -> Optional[int]:
 
 
 def _hba1c_trend(entries: list[dict]) -> str:
-    """Summarise direction of HbA1c over the last few readings."""
     readings = _all_obs(entries, HBA1C_CODES)
     if len(readings) < 2:
         return "insufficient data for trend"
 
-    recent = readings[-5:]  # up to last 5
+    recent = readings[-5:]
     values = [r["valueQuantity"]["value"] for r in recent]
     dates = [r.get("effectiveDateTime", "")[:10] for r in recent]
 
@@ -173,7 +173,12 @@ Priority must be exactly one of: High, Medium, Low."""
 
 
 @router.get("/{patient_id}", response_model=RecommendationResponse)
-async def get_recommendations(patient_id: str):
+async def get_recommendations(
+    patient_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    require_patient_access(patient_id, current_user)
+
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=503, detail="Gemini API key not configured. Set GEMINI_API_KEY in .env.")
 
