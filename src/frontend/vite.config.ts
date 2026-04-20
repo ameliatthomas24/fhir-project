@@ -25,6 +25,10 @@ export default defineConfig({
         target: "http://hapi-backend:8000",
         changeOrigin: true,
       },
+      "/chat": {
+        target: "http://hapi-backend:8000",
+        changeOrigin: true,
+      },
     },
   },
 });

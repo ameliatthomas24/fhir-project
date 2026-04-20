@@ -1,4 +1,4 @@
-import type { MedicationSummary, ObservationPoint, PatientSummary, RecommendationResponse } from "../types";
+import type { ChatMessage, MedicationSummary, ObservationPoint, PatientSummary, RecommendationResponse } from "../types";
 
 const TOKEN_KEY = "auth_token";
 
@@ -76,4 +76,18 @@ export function getActiveMedications(patientId: string): Promise<MedicationSumma
 
 export function getRecommendations(patientId: string): Promise<RecommendationResponse> {
   return apiFetch<RecommendationResponse>(`/recommendations/${patientId}`);
+}
+
+export async function sendChatMessage(patientId: string, messages: ChatMessage[]): Promise<string> {
+  const res = await fetch(`/chat/${patientId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API ${res.status}: ${text}`);
+  }
+  const data = await res.json() as { reply: string };
+  return data.reply;
 }

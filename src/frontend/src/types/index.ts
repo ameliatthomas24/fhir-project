@@ -39,3 +39,8 @@ export interface RecommendationResponse {
   summary: string;
   recommendations: Recommendation[];
 }
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
