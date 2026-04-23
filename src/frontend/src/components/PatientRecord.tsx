@@ -109,7 +109,7 @@ function LabBar({ label, value, max, unit }: { label: string; value: number; max
     );
 }
 
-function GlucoseChart({ data }: { data: ObservationPoint[] }) {
+function GlucoseChart({ data }: { data: ObservationPoint[] }) { 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -223,8 +223,10 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
     }, [patient.id]);
 
     useEffect(() => {
-        // Vite will proxy this to http://hapi-backend:8000/predict/...
-        fetch(`/predict/${patient.id}`)
+        const token = localStorage.getItem("auth_token");
+        fetch(`/predict/${patient.id}`, {
+            headers: token ? { "Authorization": `Bearer ${token}` } : {}
+        })
             .then(r => {
                 if (!r.ok) throw new Error("Backend Error");
                 return r.json();
@@ -412,10 +414,13 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                                 <div className="pr-two-col">
                                     <div className="pr-card">
                                         <div className="pr-card-title" style={{ marginBottom: "1rem" }}>📊 Labs</div>
-                                        <LabBar label="HbA1c" value={latestHba1c?.value ?? 0} max={7} unit="%" />
-                                        <LabBar label="LDL" value={latestLDL?.value ?? 0} max={100} unit="mg/dL" />
-                                        <LabBar label="HDL" value={latestHDL?.value ?? 0} max={60} unit="mg/dL" />
-                                        <LabBar label="Triglycerides" value={latestTrig?.value ?? 0} max={150} unit="mg/dL" />
+                                        {latestHba1c && <LabBar label="HbA1c" value={latestHba1c.value!} max={7} unit="%" />}
+                                        {latestLDL && <LabBar label="LDL" value={latestLDL.value!} max={100} unit="mg/dL" />}
+                                        {latestHDL && <LabBar label="HDL" value={latestHDL.value!} max={60} unit="mg/dL" />}
+                                        {latestTrig && <LabBar label="Triglycerides" value={latestTrig.value!} max={150} unit="mg/dL" />}
+                                        {!latestHba1c && !latestLDL && !latestHDL && !latestTrig && (
+                                            <p className="pr-empty">No lab data available</p>
+                                        )}
                                         <div className="pr-ai-strip">
                                             <span className="pr-ai-star">✦</span>
                                             <div>
