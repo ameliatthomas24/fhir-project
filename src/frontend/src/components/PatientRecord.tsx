@@ -5,6 +5,8 @@ import CareRecommendations from "./CareRecommendations";
 import ChatWidget from "./ChatWidget";
 import AppointmentModal from "./AppointmentModal";
 import NoteModal from "./NoteModal";
+import MessageModal from "./MessageModal";
+import ClinicianInbox, { type PatientMessage } from "./ClinicianInbox";
 import "./PatientRecord.css";
 
 interface Props {
@@ -13,7 +15,7 @@ interface Props {
     onBack: () => void;
 }
 
-type Tab = "overview" | "labs" | "medications" | "visits" | "notes" | "ml-risk" | "care-plan";
+type Tab = "overview" | "labs" | "medications" | "visits" | "notes" | "ml-risk" | "care-plan" | "inbox";
 
 const GLUCOSE_CODES = new Set(["15074-8", "2339-0"]);
 const HBA1C_CODES = new Set(["4548-4", "17856-6"]);
@@ -191,6 +193,8 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
     const [appointments, setAppointments] = useState<ScheduledAppointment[]>([]);
     const [notes, setNotes] = useState<Note[]>([]);
     const [toastMsg, setToastMsg] = useState<string | null>(null);
+    const [messages, setMessages] = useState<PatientMessage[]>([]);
+    const [messageOpen, setMessageOpen] = useState(false);
 
     useEffect(() => {
         if (!toastMsg) return;
@@ -288,6 +292,7 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
         { id: "notes", label: "Clinical Notes" },
         { id: "ml-risk", label: "ML Risk Analysis" },
         { id: "care-plan", label: "✦ Care Plan" },
+        ...(portal === "clinician" ? [{ id: "inbox" as Tab, label: "📬 Inbox" }] : []),
     ];
 
     return (
@@ -306,7 +311,11 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                     ))}
                 </div>
                 <div className="pr-actions">
-                    {portal === "clinician" && (
+                    {portal === "patient" ? (
+                        <button className="pr-btn pr-btn-primary" onClick={() => setMessageOpen(true)}>
+                            ✉ Send a Message
+                        </button>
+                    ) : (
                         <button className="pr-btn pr-btn-primary">✉ Message Patient</button>
                     )}
                     <button className="pr-btn" onClick={() => setNoteOpen(true)}>+ Add Note</button>
@@ -594,6 +603,13 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                             </div>
                         )}
 
+                        {tab === "inbox" && portal === "clinician" && (
+                            <ClinicianInbox
+                                messages={messages}
+                                onMarkRead={id => setMessages(prev => prev.map(m => m.id === id ? { ...m, read: true } : m))}
+                                onReply={(id, reply) => setMessages(prev => prev.map(m => m.id === id ? { ...m, reply } : m))}
+                            />
+                        )}
                         {tab === "ml-risk" && (
                             <div>
                                 <div className="pr-card" style={{ marginBottom: "1.25rem" }}>
@@ -691,6 +707,25 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                     {toastMsg}
                 </div>
             )}
+
+            <MessageModal
+                open={messageOpen}
+                onClose={() => setMessageOpen(false)}
+                patientName={patient.full_name}
+                onSend={(body, subject) => {
+                    setMessages(prev => [{
+                        id: crypto.randomUUID(),
+                        patientId: patient.id,
+                        patientName: patient.full_name,
+                        subject,
+                        body,
+                        sentAt: new Date().toISOString(),
+                        read: false,
+                    }, ...prev]);
+                    setMessageOpen(false);
+                }}
+            />
+
         </div>
     );
 }
