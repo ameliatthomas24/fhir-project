@@ -5,7 +5,7 @@ import asyncpg
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import patients, observations, medications, recommendations, predict, chat
+from routers import patients, observations, medications, recommendations, predict, chat, conditions
 from routers import auth as auth_router
 CREATE_USERS_TABLE = """
 CREATE TABLE IF NOT EXISTS users (
@@ -44,6 +44,7 @@ app.include_router(medications.router, prefix="/medications", tags=["Medications
 app.include_router(recommendations.router, prefix="/recommendations", tags=["Recommendations"])
 app.include_router(predict.router, prefix="/predict", tags=["ML"])
 app.include_router(chat.router, prefix="/chat", tags=["Chat"])
+app.include_router(conditions.router, prefix="/conditions", tags=["Conditions"])
 @app.get("/health", tags=["Health"])
 def health_check():
     return {"status": "ok"}

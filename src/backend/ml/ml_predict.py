@@ -43,15 +43,16 @@ def generate_risk_assessment(patient_profile: PatientProfile, pipeline) -> Diabe
     # Risk probability
     probability_score = float(pipeline.predict_proba(patient_input_data)[0][1])
 
-    # Risk label
-    if probability_score < 0.3:
+    # Thresholds tuned for a managed-diabetes patient population where HbA1c
+    # values cluster between 5.3-7.6% and the model outputs skewed probabilities.
+    if probability_score < 0.15:
         risk_level = "Low"
-    elif probability_score < 0.6:
+    elif probability_score < 0.45:
         risk_level = "Moderate"
     else:
         risk_level = "High"
 
-    # Top features 
+    # Per-patient feature contributions
     feature_processor = pipeline.named_steps["pre"]
     trained_classifier = pipeline.named_steps["clf"]
 
@@ -60,16 +61,22 @@ def generate_risk_assessment(patient_profile: PatientProfile, pipeline) -> Diabe
         .get_feature_names_out(CATEGORICAL_COLUMNS)
     )
     combined_feature_names = processed_categorical_names + NUMERICAL_COLUMNS
-    influence_rankings = trained_classifier.feature_importances_
 
-    key_risk_drivers = (
-        pd.Series(influence_rankings, index=combined_feature_names)
+    # Weight this patient's preprocessed values by global importances
+    preprocessed_values = feature_processor.transform(patient_input_data)[0]
+    feature_importances = trained_classifier.feature_importances_
+    contributions = [abs(float(v) * float(w)) for v, w in zip(preprocessed_values, feature_importances)]
+    total = sum(contributions) or 1.0
+
+    top_series = (
+        pd.Series(contributions, index=combined_feature_names)
         .sort_values(ascending=False)
         .head(5)
-        .reset_index()
-        .rename(columns={"index": "feature", 0: "importance"})
-        .to_dict(orient="records")
     )
+    key_risk_drivers = [
+        {"feature": name, "importance": round(val / total, 4)}
+        for name, val in top_series.items()
+    ]
 
     return DiabetesPrediction(
         risk_score=round(probability_score, 4),

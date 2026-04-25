@@ -21,6 +21,13 @@ class ObservationPoint(BaseModel):
     effective_date: Optional[str] = None
     status: str
  
+class ConditionSummary(BaseModel):
+    id: str
+    patient_id: str
+    display: str
+    onset_date: Optional[str] = None
+    clinical_status: Optional[str] = None
+
 class MedicationSummary(BaseModel):
     id: str
     patient_id: str
