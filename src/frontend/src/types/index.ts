@@ -40,6 +40,14 @@ export interface RecommendationResponse {
   recommendations: Recommendation[];
 }
 
+export interface ConditionSummary {
+  id: string;
+  patient_id: string;
+  display: string;
+  onset_date?: string;
+  clinical_status?: string;
+}
+
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;

@@ -40,6 +40,10 @@ export default defineConfig({
         target: "http://hapi-backend:8000",
         changeOrigin: true,
       },
+      "/conditions": {
+        target: "http://hapi-backend:8000",
+        changeOrigin: true,
+      },
     },
   },
 });

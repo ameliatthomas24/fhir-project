@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState, useRef } from "react";
-import { getActiveMedications, getObservations } from "../api/client";
-import type { MedicationSummary, Note, ObservationPoint, PatientSummary, ScheduledAppointment } from "../types";
+import { getActiveMedications, getConditions, getObservations } from "../api/client";
+import type { ConditionSummary, MedicationSummary, Note, ObservationPoint, PatientSummary, ScheduledAppointment } from "../types";
 import CareRecommendations from "./CareRecommendations";
 import ChatWidget from "./ChatWidget";
 import AppointmentModal from "./AppointmentModal";
@@ -175,12 +175,13 @@ function GlucoseChart({ data }: { data: ObservationPoint[] }) {
     return <div ref={wrapRef} style={{ width: "100%" }}><canvas ref={canvasRef} /></div>;
 }
 
-type MlRisk = { risk_score: number; risk_label: string; top_factors: { feature: string; importance: number }[]; inputs?: Record<string, number | string> };
+type MlRisk = { insufficient_data?: boolean; risk_score: number; risk_label: string; top_factors: { feature: string; importance: number }[]; inputs?: Record<string, number | string> };
 
 export default function PatientRecord({ patient, portal, onBack }: Props) {
     const [tab, setTab] = useState<Tab>("overview");
     const [observations, setObservations] = useState<ObservationPoint[]>([]);
     const [medications, setMedications] = useState<MedicationSummary[]>([]);
+    const [conditions, setConditions] = useState<ConditionSummary[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [mlRisk, setMlRisk] = useState<MlRisk | null>(null);
@@ -216,13 +217,14 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
 
     useEffect(() => {
         setLoading(true);
-        Promise.all([getObservations(patient.id), getActiveMedications(patient.id)])
-            .then(([obs, meds]) => { setObservations(obs); setMedications(meds); })
+        Promise.all([getObservations(patient.id), getActiveMedications(patient.id), getConditions(patient.id)])
+            .then(([obs, meds, conds]) => { setObservations(obs); setMedications(meds); setConditions(conds); })
             .catch(err => setError(err instanceof Error ? err.message : "Failed to load"))
             .finally(() => setLoading(false));
     }, [patient.id]);
 
     useEffect(() => {
+        setMlRisk(null);
         const token = localStorage.getItem("auth_token");
         fetch(`/predict/${patient.id}`, {
             headers: token ? { "Authorization": `Bearer ${token}` } : {}
@@ -249,6 +251,30 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
     const cvRisk = Math.min(99, Math.round(hba1cVal * 4 + 10));
     const neuroRisk = Math.min(99, Math.round(hba1cVal * 2 + 3));
     const retinoRisk = Math.min(99, Math.round(hba1cVal * 5 + 5));
+
+    // Compute % change between two most recent readings for a code set, null if insufficient data
+    function trendBadge(codes: Set<string>): { text: string; pos: boolean } | null {
+        const sorted = observations
+            .filter(o => codes.has(o.code) && o.value != null)
+            .sort((a, b) => (b.effective_date ?? "").localeCompare(a.effective_date ?? ""));
+        if (sorted.length < 2 || sorted[1].value === 0) return null;
+        const pct = ((sorted[0].value! - sorted[1].value!) / sorted[1].value!) * 100;
+        return { text: `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`, pos: pct >= 0 };
+    }
+
+    function riskLevel(pct: number): string {
+        return pct < 30 ? "Low" : pct < 60 ? "Moderate" : "High";
+    }
+
+    function hba1cSummary(): string {
+        if (!latestHba1c || latestHba1c.value == null)
+            return "No lab data available yet. Check back after upcoming results.";
+        const v = latestHba1c.value;
+        if (v < 5.7) return `HbA1c ${v.toFixed(1)}% — within normal range, well-controlled.`;
+        if (v < 6.5) return `HbA1c ${v.toFixed(1)}% — pre-diabetes range. Close monitoring recommended.`;
+        if (v <= 7.0) return `HbA1c ${v.toFixed(1)}% — diabetes, reasonably controlled. Maintain current regimen.`;
+        return `HbA1c ${v.toFixed(1)}% — above target. Review glycemic management plan.`;
+    }
 
     const riskColor = mlRisk?.risk_label === "High" ? "#ef4444" : mlRisk?.risk_label === "Moderate" ? "#f59e0b" : "#10b981";
     const riskBg = mlRisk?.risk_label === "High" ? "#fee2e2" : mlRisk?.risk_label === "Moderate" ? "#fef3c7" : "#dcfce7";
@@ -339,16 +365,17 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                             <button className="pr-view-all">View All</button>
                         </div>
                         <div className="pr-problems">
-                            <div className="pr-problem">
-                                <span className="pr-problem-icon">⚠</span>
-                                <span>Peripheral Neuropathy</span>
-                                <span className="pr-problem-chev">›</span>
-                            </div>
-                            <div className="pr-problem">
-                                <span className="pr-problem-icon">⚠</span>
-                                <span>Hypertension</span>
-                                <span className="pr-problem-chev">›</span>
-                            </div>
+                            {conditions.length === 0 ? (
+                                <div style={{ fontSize: "13px", color: "#94a3b8", padding: "4px 0" }}>No active conditions on record</div>
+                            ) : (
+                                conditions.slice(0, 4).map(c => (
+                                    <div key={c.id} className="pr-problem">
+                                        <span className="pr-problem-icon">⚠</span>
+                                        <span>{c.display}</span>
+                                        <span className="pr-problem-chev">›</span>
+                                    </div>
+                                ))
+                            )}
                         </div>
 
                         <hr className="pr-hr" />
@@ -356,7 +383,7 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                         <button className="pr-ask-ai" onClick={() => setChatOpen(true)}>✦ Ask AI</button>
 
                         {/* ML Risk Preview in Sidebar */}
-                        {mlRisk && (
+                        {mlRisk && !mlRisk.insufficient_data && (
                             <button
                                 className="pr-ml-preview"
                                 onClick={() => setTab("ml-risk")}
@@ -386,15 +413,15 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                             <>
                                 <div className="pr-vitals">
                                     {[
-                                        { label: "Blood Glucose", value: latestGlucose?.value ?? "—", unit: "mg/dL", change: "+2%", pos: true },
-                                        { label: "Blood Pressure", value: latestBP?.value ?? "—", unit: "mmHg", change: "+3%", pos: true },
-                                        { label: "Heart Rate", value: latestHR?.value ?? "—", unit: "bpm", change: "-1%", pos: false },
-                                        { label: "Weight", value: latestWeight?.value ?? "—", unit: "lbs", change: "+1%", pos: true },
+                                        { label: "Blood Glucose", value: latestGlucose?.value ?? "—", unit: "mg/dL", trend: trendBadge(GLUCOSE_CODES) },
+                                        { label: "Blood Pressure", value: latestBP?.value ?? "—", unit: "mmHg", trend: trendBadge(BP_CODES) },
+                                        { label: "Heart Rate", value: latestHR?.value ?? "—", unit: "bpm", trend: trendBadge(HR_CODES) },
+                                        { label: "Weight", value: latestWeight?.value ?? "—", unit: "lbs", trend: trendBadge(WEIGHT_CODES) },
                                     ].map(v => (
                                         <div key={v.label} className="pr-vital">
                                             <div className="pr-vital-label">{v.label}</div>
                                             <div className="pr-vital-val">{v.value}<span className="pr-vital-unit"> {v.unit}</span></div>
-                                            <span className={`pr-vital-badge ${v.pos ? "pos" : "neg"}`}>{v.change}</span>
+                                            {v.trend && <span className={`pr-vital-badge ${v.trend.pos ? "pos" : "neg"}`}>{v.trend.text}</span>}
                                         </div>
                                     ))}
                                 </div>
@@ -425,7 +452,7 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                                             <span className="pr-ai-star">✦</span>
                                             <div>
                                                 <div className="pr-ai-strip-title">AI Assistant Report</div>
-                                                <div className="pr-ai-strip-text">Your recent labs show good glucose control. Continue monitoring HbA1c levels.</div>
+                                                <div className="pr-ai-strip-text">{hba1cSummary()}</div>
                                             </div>
                                             <span style={{ color: "#94a3b8" }}>›</span>
                                         </div>
@@ -433,20 +460,20 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
 
                                     <div className="pr-card">
                                         <div className="pr-card-title" style={{ marginBottom: "1rem" }}>⚠ Risk Forecast</div>
-                                        {[
-                                            { name: "Cardiovascular Risk", level: "Moderate", factors: "Blood Pressure, Cholesterol", pct: cvRisk, color: "#3b82f6" },
-                                            { name: "Neuropathy Risk", level: "Low", factors: "Good glucose control", pct: neuroRisk, color: "#10b981" },
-                                            { name: "Retinopathy Risk", level: "Moderate", factors: "Diabetes, Duration", pct: retinoRisk, color: "#f59e0b" },
+                                        {latestHba1c ? [
+                                            { name: "Cardiovascular Risk", pct: cvRisk, color: "#3b82f6" },
+                                            { name: "Neuropathy Risk", pct: neuroRisk, color: "#10b981" },
+                                            { name: "Retinopathy Risk", pct: retinoRisk, color: "#f59e0b" },
                                         ].map(r => (
                                             <div key={r.name} className="pr-risk">
                                                 <div className="pr-risk-text">
                                                     <div className="pr-risk-name">{r.name}</div>
-                                                    <div className="pr-risk-level">Level: {r.level}</div>
-                                                    <div className="pr-risk-factors">Contributing Factors: {r.factors}</div>
+                                                    <div className="pr-risk-level">Level: {riskLevel(r.pct)}</div>
+                                                    <div className="pr-risk-factors">Based on HbA1c {latestHba1c.value?.toFixed(1)}%</div>
                                                 </div>
                                                 <CircleRisk pct={r.pct} color={r.color} />
                                             </div>
-                                        ))}
+                                        )) : <p className="pr-empty">No HbA1c data available for risk forecast.</p>}
                                     </div>
                                 </div>
                             </>
@@ -573,6 +600,8 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                                     <div className="pr-card-title" style={{ marginBottom: "1.5rem" }}>🤖 ML Diabetes Risk Analysis</div>
                                     {!mlRisk ? (
                                         <p className="pr-empty">Loading ML prediction...</p>
+                                    ) : mlRisk.insufficient_data ? (
+                                        <p className="pr-empty">No HbA1c observations found in this patient's record. ML risk scoring requires at least one HbA1c lab result.</p>
                                     ) : (
                                         <>
                                             {/* Big score display */}
@@ -605,7 +634,7 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                                     )}
                                 </div>
 
-                                {mlRisk && (
+                                {mlRisk && !mlRisk.insufficient_data && (
                                     <div className="pr-card">
                                         <div className="pr-card-title" style={{ marginBottom: "1.25rem" }}>Top Risk Factors</div>
                                         <div style={{ fontSize: "13px", color: "#64748b", marginBottom: "1rem" }}>

@@ -1,4 +1,4 @@
-import type { ChatMessage, MedicationSummary, ObservationPoint, PatientSummary, RecommendationResponse } from "../types";
+import type { ChatMessage, ConditionSummary, MedicationSummary, ObservationPoint, PatientSummary, RecommendationResponse } from "../types";
 
 const TOKEN_KEY = "auth_token";
 
@@ -72,6 +72,10 @@ export function getObservations(patientId: string): Promise<ObservationPoint[]> 
 
 export function getActiveMedications(patientId: string): Promise<MedicationSummary[]> {
   return apiFetch<MedicationSummary[]>(`/medications/${patientId}/active`);
+}
+
+export function getConditions(patientId: string): Promise<ConditionSummary[]> {
+  return apiFetch<ConditionSummary[]>(`/conditions/${patientId}`);
 }
 
 export function getRecommendations(patientId: string): Promise<RecommendationResponse> {
