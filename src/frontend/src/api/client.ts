@@ -1,4 +1,4 @@
-import type { ChatMessage, ConditionSummary, MedicationSummary, ObservationPoint, PatientSummary, RecommendationResponse } from "../types";
+import type { ChatMessage, ConditionSummary, MedicationSummary, Note, ObservationPoint, PatientMessage, PatientSummary, RecommendationResponse, ScheduledAppointment } from "../types";
 
 const TOKEN_KEY = "auth_token";
 
@@ -81,6 +81,50 @@ export function getConditions(patientId: string): Promise<ConditionSummary[]> {
 export function getRecommendations(patientId: string): Promise<RecommendationResponse> {
   return apiFetch<RecommendationResponse>(`/recommendations/${patientId}`);
 }
+
+// ── Notes ────────────────────────────────────────────────────────────────────
+
+export function getNotes(patientId: string): Promise<Note[]> {
+  return apiFetch<Note[]>(`/notes/${patientId}`);
+}
+
+export function createNote(patientId: string, note: { id: string; content: string; createdAt: string; author: string }): Promise<Note> {
+  return apiFetch<Note>(`/notes/${patientId}`, { method: "POST", body: JSON.stringify(note) });
+}
+
+// ── Appointments ─────────────────────────────────────────────────────────────
+
+export function getAppointments(patientId: string): Promise<ScheduledAppointment[]> {
+  return apiFetch<ScheduledAppointment[]>(`/appointments/${patientId}`);
+}
+
+export function createAppointment(patientId: string, appt: ScheduledAppointment): Promise<ScheduledAppointment> {
+  return apiFetch<ScheduledAppointment>(`/appointments/${patientId}`, { method: "POST", body: JSON.stringify(appt) });
+}
+
+// ── Messages ─────────────────────────────────────────────────────────────────
+
+export function getMessages(patientId: string): Promise<PatientMessage[]> {
+  return apiFetch<PatientMessage[]>(`/messages/${patientId}`);
+}
+
+export function sendMessage(patientId: string, msg: { id: string; patientName: string; subject: string; body: string; sentAt: string; fromRole?: string }): Promise<PatientMessage> {
+  return apiFetch<PatientMessage>(`/messages/${patientId}`, { method: "POST", body: JSON.stringify(msg) });
+}
+
+export function markMessageRead(patientId: string, messageId: string): Promise<void> {
+  return apiFetch<void>(`/messages/${patientId}/${messageId}/read`, { method: "PATCH" });
+}
+
+export function replyToMessage(patientId: string, messageId: string, reply: string): Promise<PatientMessage> {
+  return apiFetch<PatientMessage>(`/messages/${patientId}/${messageId}/reply`, { method: "PATCH", body: JSON.stringify({ reply }) });
+}
+
+export function markMessagePatientRead(patientId: string, messageId: string): Promise<void> {
+  return apiFetch<void>(`/messages/${patientId}/${messageId}/patient-read`, { method: "PATCH" });
+}
+
+// ── Chat ─────────────────────────────────────────────────────────────────────
 
 export async function sendChatMessage(patientId: string, messages: ChatMessage[]): Promise<string> {
   const res = await fetch(`/chat/${patientId}`, {

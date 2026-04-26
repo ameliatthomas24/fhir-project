@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import google.generativeai as genai
 from fastapi.middleware.cors import CORSMiddleware
-from routers import patients, observations, medications, recommendations, predict, chat, conditions
+from routers import patients, observations, medications, recommendations, predict, chat, conditions, portal_data
 from routers import auth as auth_router
 CREATE_USERS_TABLE = """
 CREATE TABLE IF NOT EXISTS users (
@@ -17,9 +17,44 @@ CREATE TABLE IF NOT EXISTS users (
     fhir_patient_id TEXT
 )
 """
+CREATE_NOTES_TABLE = """
+CREATE TABLE IF NOT EXISTS notes (
+    id         TEXT PRIMARY KEY,
+    patient_id TEXT NOT NULL,
+    content    TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    author     TEXT NOT NULL CHECK (author IN ('clinician', 'patient'))
+)
+"""
+CREATE_APPOINTMENTS_TABLE = """
+CREATE TABLE IF NOT EXISTS appointments (
+    id         TEXT PRIMARY KEY,
+    patient_id TEXT NOT NULL,
+    date       TEXT NOT NULL,
+    time       TEXT NOT NULL,
+    type       TEXT NOT NULL CHECK (type IN ('in-person', 'virtual')),
+    reason     TEXT NOT NULL,
+    status     TEXT NOT NULL DEFAULT 'upcoming'
+)
+"""
+CREATE_MESSAGES_TABLE = """
+CREATE TABLE IF NOT EXISTS messages (
+    id           TEXT PRIMARY KEY,
+    patient_id   TEXT NOT NULL,
+    patient_name TEXT NOT NULL,
+    subject      TEXT NOT NULL,
+    body         TEXT NOT NULL,
+    sent_at      TIMESTAMPTZ NOT NULL,
+    read         BOOLEAN NOT NULL DEFAULT FALSE,
+    reply        TEXT,
+    patient_read BOOLEAN NOT NULL DEFAULT FALSE,
+    from_role    TEXT NOT NULL DEFAULT 'patient'
+)
+"""
+MIGRATE_MESSAGES_FROM_ROLE = """
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS from_role TEXT NOT NULL DEFAULT 'patient'
+"""
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-# Temporary manual check
-db_url = "postgresql://admin:password123@127.0.0.1:5432/hapi_db"
 
 
 @asynccontextmanager
@@ -29,6 +64,10 @@ async def lifespan(app: FastAPI):
     app.state.db_pool = await asyncpg.create_pool(db_url)
     async with app.state.db_pool.acquire() as conn:
         await conn.execute(CREATE_USERS_TABLE)
+        await conn.execute(CREATE_NOTES_TABLE)
+        await conn.execute(CREATE_APPOINTMENTS_TABLE)
+        await conn.execute(CREATE_MESSAGES_TABLE)
+        await conn.execute(MIGRATE_MESSAGES_FROM_ROLE)
     yield
     await app.state.db_pool.close()
 app = FastAPI(
@@ -52,6 +91,7 @@ app.include_router(recommendations.router, prefix="/recommendations", tags=["Rec
 app.include_router(predict.router, prefix="/predict", tags=["ML"])
 app.include_router(chat.router, prefix="/chat", tags=["Chat"])
 app.include_router(conditions.router, prefix="/conditions", tags=["Conditions"])
+app.include_router(portal_data.router, tags=["Portal Data"])
 @app.get("/health", tags=["Health"])
 def health_check():
     return {"status": "ok"}
