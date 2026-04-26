@@ -1,3 +1,4 @@
+import math
 import pickle
 import pandas as pd
 from pathlib import Path
@@ -40,14 +41,22 @@ def generate_risk_assessment(patient_profile: PatientProfile, pipeline) -> Diabe
         "heart_disease":       patient_profile.heart_disease,
     }])
 
-    # Risk probability
-    probability_score = float(pipeline.predict_proba(patient_input_data)[0][1])
+    # Raw ML probability
+    ml_prob = float(pipeline.predict_proba(patient_input_data)[0][1])
 
-    # Thresholds tuned for a managed-diabetes patient population where HbA1c
-    # values cluster between 5.3-7.6% and the model outputs skewed probabilities.
-    if probability_score < 0.15:
+    # The XGBoost model outputs near-binary scores (≈0 or ≈1) for the managed-
+    # diabetes population where HbA1c clusters 5.5–7.5%.  Blend with a smooth
+    # sigmoid centred on the ADA diagnostic threshold (6.5%) so the displayed
+    # score reflects glycaemic control rather than a binary detection output.
+    hba1c = patient_profile.HbA1c_level
+    clinical_score = 1.0 / (1.0 + math.exp(-2.5 * (hba1c - 6.5)))
+
+    # Trust the ML model only when it escapes the floor; otherwise use clinical.
+    probability_score = ml_prob if ml_prob > 0.10 else clinical_score
+
+    if probability_score < 0.25:
         risk_level = "Low"
-    elif probability_score < 0.45:
+    elif probability_score < 0.55:
         risk_level = "Moderate"
     else:
         risk_level = "High"

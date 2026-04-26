@@ -250,9 +250,37 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
     const glucoseHistory = byCode(observations, GLUCOSE_CODES);
 
     const hba1cVal = latestHba1c?.value ?? 6.5;
-    const cvRisk = Math.min(99, Math.round(hba1cVal * 4 + 10));
-    const neuroRisk = Math.min(99, Math.round(hba1cVal * 2 + 3));
-    const retinoRisk = Math.min(99, Math.round(hba1cVal * 5 + 5));
+    const latestSystolic = latestByCode(observations, new Set(["8480-6"]));
+    const sbpVal = latestSystolic?.value ?? 120;
+    const ldlVal = latestLDL?.value ?? 100;
+
+    function calcAge(): number {
+        if (!patient.birth_date) return 55;
+        const [y, m, d] = patient.birth_date.split("-").map(Number);
+        return Math.floor((Date.now() - new Date(y, m - 1, d).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    }
+    const patientAge = calcAge();
+
+    // CV risk: driven by HbA1c + systolic BP + LDL + age
+    const cvRisk = Math.min(99, Math.max(5, Math.round(
+        (hba1cVal - 4.5) * 6 +
+        Math.max(0, sbpVal - 110) * 0.5 +
+        Math.max(0, ldlVal - 70) * 0.1 +
+        Math.max(0, patientAge - 30) * 0.25
+    )));
+    // Neuropathy: driven by HbA1c + glucose + age
+    const glucoseVal = latestGlucose?.value ?? 100;
+    const neuroRisk = Math.min(99, Math.max(3, Math.round(
+        (hba1cVal - 4.5) * 5 +
+        Math.max(0, glucoseVal - 80) * 0.1 +
+        Math.max(0, patientAge - 35) * 0.22
+    )));
+    // Retinopathy: driven by HbA1c + BP + age
+    const retinoRisk = Math.min(99, Math.max(3, Math.round(
+        (hba1cVal - 4.5) * 6.5 +
+        Math.max(0, sbpVal - 115) * 0.4 +
+        Math.max(0, patientAge - 35) * 0.18
+    )));
 
     // Compute % change between two most recent readings for a code set, null if insufficient data
     function trendBadge(codes: Set<string>): { text: string; pos: boolean } | null {
