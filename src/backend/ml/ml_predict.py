@@ -40,21 +40,26 @@ def generate_risk_assessment(patient_profile: PatientProfile, pipeline) -> Diabe
         "hypertension":        patient_profile.hypertension,
         "heart_disease":       patient_profile.heart_disease,
     }])
+    # LLM was used to figure out the logic and math for this
+    model_output = float(pipeline.predict_proba(patient_input_data)[0][1])
 
-    # Raw ML probability
-    ml_prob = float(pipeline.predict_proba(patient_input_data)[0][1])
+    glycated_hb = patient_profile.HbA1c_level
+    ada_threshold = 6.5
+    steepness = 2.5
+    glycaemic_index = 1.0 / (1.0 + math.exp(-steepness * (glycated_hb - ada_threshold)))
 
-    hba1c = patient_profile.HbA1c_level
-    clinical_score = 1.0 / (1.0 + math.exp(-2.5 * (hba1c - 6.5)))
+    blended_score = model_output if model_output > 0.10 else glycaemic_index
 
-    probability_score = ml_prob if ml_prob > 0.10 else clinical_score
-
-    if probability_score < 0.25:
+    LOW_CUTOFF = 0.25
+    MOD_CUTOFF = 0.55
+    if blended_score < LOW_CUTOFF:
         risk_level = "Low"
-    elif probability_score < 0.55:
+    elif blended_score < MOD_CUTOFF:
         risk_level = "Moderate"
     else:
         risk_level = "High"
+
+    probability_score = blended_score
 
     # Per-patient feature contributions
     feature_processor = pipeline.named_steps["pre"]

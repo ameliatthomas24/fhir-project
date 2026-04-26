@@ -23,7 +23,7 @@ _SOCIAL_DETERMINANT_CODES = {
 
 
 _HIDE_SNOMED_TYPES = ("(person)", "(situation)", "(observable entity)", "(regime/therapy)")
-
+# LLM was used to narrow down the list of keywords
 _SOCIAL_KEYWORDS = (
     "employed", "employment", "labor force", "labour force",
     "school level", "education (", "educated to",
