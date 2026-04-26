@@ -16,6 +16,7 @@ export interface ObservationPoint {
   unit?: string;
   effective_date?: string;
   status: string;
+  category?: string;
 }
 
 export interface MedicationSummary {
@@ -38,6 +39,14 @@ export interface Recommendation {
 export interface RecommendationResponse {
   summary: string;
   recommendations: Recommendation[];
+}
+
+export interface ConditionSummary {
+  id: string;
+  patient_id: string;
+  display: string;
+  onset_date?: string;
+  clinical_status?: string;
 }
 
 export interface ChatMessage {

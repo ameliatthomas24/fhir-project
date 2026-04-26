@@ -46,7 +46,10 @@ async def list_patients(
     if current_user["role"] != "clinician":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Clinician access required")
 
-    params: dict = {"_count": count}
+    params: dict = {
+        "_count": count,
+        "_elements": "id,name,birthDate,gender,telecom,address",
+    }
     if name:
         params["name"] = name
 

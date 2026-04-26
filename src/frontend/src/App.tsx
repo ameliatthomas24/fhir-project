@@ -2,7 +2,7 @@ import { useState } from "react";
 import PatientSearch from "./components/PatientSearch";
 import PatientRecord from "./components/PatientRecord";
 import Login from "./components/Login";
-import { getToken, clearToken } from "./api/client";
+import { getToken,setToken, clearToken } from "./api/client";
 import type { LoginResponse } from "./api/client";
 import type { PatientSummary } from "./types";
 import "./App.css";
@@ -14,10 +14,11 @@ export default function App() {
   const [portal, setPortal] = useState<Portal>("clinician");
   const [selectedPatient, setSelectedPatient] = useState<PatientSummary | null>(null);
 
-  const handleLogin = (data: LoginResponse) => {
-    setPortal(data.role === "patient" ? "patient" : "clinician");
-    setIsLoggedIn(true);
-  };
+const handleLogin = (data: LoginResponse) => {
+  setToken(data.access_token);  // explicitly save token
+  setPortal(data.role === "patient" ? "patient" : "clinician");
+  setIsLoggedIn(true);
+};
 
   const handleLogout = () => {
     clearToken();
