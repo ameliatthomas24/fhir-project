@@ -14,12 +14,13 @@ class PatientSummary(BaseModel):
 class ObservationPoint(BaseModel):
     id: str
     patient_id: str
-    code: str          
-    display: str      
+    code: str
+    display: str
     value: Optional[float] = None
     unit: Optional[str] = None
     effective_date: Optional[str] = None
     status: str
+    category: Optional[str] = None
  
 class ConditionSummary(BaseModel):
     id: str

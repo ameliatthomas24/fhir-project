@@ -1,0 +1,27 @@
+# Synthea generated patient data 
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+.env
+
+# Node
+node_modules/
+src/frontend/dist/
+
+# Synthea output at project root
+synthea_output/
+synthea.jar
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/

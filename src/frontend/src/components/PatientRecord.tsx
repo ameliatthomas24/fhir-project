@@ -38,7 +38,9 @@ function byCode(obs: ObservationPoint[], codes: Set<string>) {
 
 function formatDate(d?: string) {
     if (!d) return "—";
-    const [year, month, day] = d.split("-").map(Number);
+    const datePart = d.split("T")[0];
+    const [year, month, day] = datePart.split("-").map(Number);
+    if (!year || !month || !day) return "—";
     return new Date(year, month - 1, day).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
@@ -251,10 +253,64 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
     const latestTrig = latestByCode(observations, TRIGLYCERIDE_CODES);
     const glucoseHistory = byCode(observations, GLUCOSE_CODES);
 
+    // LLM was used to figure out the logic on how to intergrate the ml fixes to frontend
     const hba1cVal = latestHba1c?.value ?? 6.5;
-    const cvRisk = Math.min(99, Math.round(hba1cVal * 4 + 10));
-    const neuroRisk = Math.min(99, Math.round(hba1cVal * 2 + 3));
-    const retinoRisk = Math.min(99, Math.round(hba1cVal * 5 + 5));
+    const SYSTOLIC_CODE = new Set(["8480-6"]);
+    const systolicReading = latestByCode(observations, SYSTOLIC_CODE);
+    const systolicBP = systolicReading?.value ?? 120;
+    const ldlReading = latestLDL?.value ?? 100;
+
+    const dob = patient.birth_date;
+    let ageYears = 55;
+    if (dob) {
+        const [yr, mo, dy] = dob.split("-").map(Number);
+        const msPerYear = 365.25 * 24 * 3600 * 1000;
+        ageYears = Math.floor((Date.now() - new Date(yr, mo - 1, dy).getTime()) / msPerYear);
+    }
+
+    const glycaemicBase = hba1cVal - 4.5;
+    const sbpExcess = Math.max(0, systolicBP - 110);
+    const ldlExcess = Math.max(0, ldlReading - 70);
+    const ageFactorCV = Math.max(0, ageYears - 30);
+    const cvRisk = Math.min(99, Math.max(5, Math.round(
+        glycaemicBase * 6 + sbpExcess * 0.5 + ldlExcess * 0.1 + ageFactorCV * 0.25
+    )));
+
+    const glucoseVal = latestGlucose?.value ?? 100;
+    const glucoseExcess = Math.max(0, glucoseVal - 80);
+    const ageFactorNeuro = Math.max(0, ageYears - 35);
+    const neuroRisk = Math.min(99, Math.max(3, Math.round(
+        glycaemicBase * 5 + glucoseExcess * 0.1 + ageFactorNeuro * 0.22
+    )));
+
+    const sbpExcessRetino = Math.max(0, systolicBP - 115);
+    const retinoRisk = Math.min(99, Math.max(3, Math.round(
+        glycaemicBase * 6.5 + sbpExcessRetino * 0.4 + ageFactorNeuro * 0.18
+    )));
+
+    // Compute % change between two most recent readings for a code set, null if insufficient data
+    function trendBadge(codes: Set<string>): { text: string; pos: boolean } | null {
+        const sorted = observations
+            .filter(o => codes.has(o.code) && o.value != null)
+            .sort((a, b) => (b.effective_date ?? "").localeCompare(a.effective_date ?? ""));
+        if (sorted.length < 2 || sorted[1].value === 0) return null;
+        const pct = ((sorted[0].value! - sorted[1].value!) / sorted[1].value!) * 100;
+        return { text: `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`, pos: pct >= 0 };
+    }
+
+    function riskLevel(pct: number): string {
+        return pct < 30 ? "Low" : pct < 60 ? "Moderate" : "High";
+    }
+
+    function hba1cSummary(): string {
+        if (!latestHba1c || latestHba1c.value == null)
+            return "No lab data available yet. Check back after upcoming results.";
+        const v = latestHba1c.value;
+        if (v < 5.7) return `HbA1c ${v.toFixed(1)}% — within normal range, well-controlled.`;
+        if (v < 6.5) return `HbA1c ${v.toFixed(1)}% — pre-diabetes range. Close monitoring recommended.`;
+        if (v <= 7.0) return `HbA1c ${v.toFixed(1)}% — diabetes, reasonably controlled. Maintain current regimen.`;
+        return `HbA1c ${v.toFixed(1)}% — above target. Review glycemic management plan.`;
+    }
 
     // Compute % change between two most recent readings for a code set, null if insufficient data
     function trendBadge(codes: Set<string>): { text: string; pos: boolean } | null {
@@ -491,22 +547,27 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                         {tab === "labs" && (
                             <div className="pr-card">
                                 <div className="pr-card-title" style={{ marginBottom: "1rem" }}>Lab Results</div>
-                                {observations.length === 0 ? <p className="pr-empty">No lab results available</p> : (
-                                    <table className="pr-table">
-                                        <thead><tr><th>Test</th><th>Value</th><th>Unit</th><th>Date</th><th>Status</th></tr></thead>
-                                        <tbody>
-                                            {observations.slice(0, 40).map(o => (
-                                                <tr key={o.id}>
-                                                    <td>{o.display}</td>
-                                                    <td style={{ fontWeight: 600 }}>{o.value ?? "—"}</td>
-                                                    <td style={{ color: "#64748b" }}>{o.unit ?? "—"}</td>
-                                                    <td>{formatDate(o.effective_date)}</td>
-                                                    <td><span className="pr-status">{o.status}</span></td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                )}
+                                {(() => {
+                                    const clinicalObs = observations.filter(
+                                        o => o.category === "laboratory" || o.category === "vital-signs"
+                                    );
+                                    return clinicalObs.length === 0 ? <p className="pr-empty">No lab results available</p> : (
+                                        <table className="pr-table">
+                                            <thead><tr><th>Test</th><th>Value</th><th>Unit</th><th>Date</th><th>Status</th></tr></thead>
+                                            <tbody>
+                                                {clinicalObs.slice(0, 60).map(o => (
+                                                    <tr key={`${o.id}-${o.code}`}>
+                                                        <td>{o.display}</td>
+                                                        <td style={{ fontWeight: 600 }}>{o.value ?? "—"}</td>
+                                                        <td style={{ color: "#64748b" }}>{o.unit ?? "—"}</td>
+                                                        <td>{formatDate(o.effective_date)}</td>
+                                                        <td><span className="pr-status">{o.status}</span></td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    );
+                                })()}
                             </div>
                         )}
 

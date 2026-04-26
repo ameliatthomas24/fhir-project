@@ -83,7 +83,6 @@ def test_get_blood_pressure_passes_loinc_codes(clinician_client, monkeypatch):
     monkeypatch.setattr(obs_router, "search_resource", mock)
     clinician_client.get("/observations/patient-abc/blood-pressure")
     params = mock.call_args[0][1]
-    # should contain at least one BP LOINC code
     bp_codes = {"55284-4", "8480-6", "8462-4"}
     sent_codes = set(params["code"].split(","))
     assert sent_codes & bp_codes

@@ -1,3 +1,4 @@
+import math
 import pickle
 import pandas as pd
 from pathlib import Path
@@ -39,18 +40,26 @@ def generate_risk_assessment(patient_profile: PatientProfile, pipeline) -> Diabe
         "hypertension":        patient_profile.hypertension,
         "heart_disease":       patient_profile.heart_disease,
     }])
+    # LLM was used to figure out the logic and math for this
+    model_output = float(pipeline.predict_proba(patient_input_data)[0][1])
 
-    # Risk probability
-    probability_score = float(pipeline.predict_proba(patient_input_data)[0][1])
+    glycated_hb = patient_profile.HbA1c_level
+    ada_threshold = 6.5
+    steepness = 2.5
+    glycaemic_index = 1.0 / (1.0 + math.exp(-steepness * (glycated_hb - ada_threshold)))
 
-    # Thresholds tuned for a managed-diabetes patient population where HbA1c
-    # values cluster between 5.3-7.6% and the model outputs skewed probabilities.
-    if probability_score < 0.15:
+    blended_score = model_output if model_output > 0.10 else glycaemic_index
+
+    LOW_CUTOFF = 0.25
+    MOD_CUTOFF = 0.55
+    if blended_score < LOW_CUTOFF:
         risk_level = "Low"
-    elif probability_score < 0.45:
+    elif blended_score < MOD_CUTOFF:
         risk_level = "Moderate"
     else:
         risk_level = "High"
+
+    probability_score = blended_score
 
     # Per-patient feature contributions
     feature_processor = pipeline.named_steps["pre"]
