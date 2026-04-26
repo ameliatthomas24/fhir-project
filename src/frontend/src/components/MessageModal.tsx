@@ -6,9 +6,10 @@ interface Props {
     onClose: () => void;
     onSend: (message: string, subject: string) => void;
     patientName: string;
+    mode?: "patient" | "clinician";
 }
 
-const QUICK_SUBJECTS = [
+const PATIENT_SUBJECTS = [
     "Question about my medication",
     "Request for appointment",
     "Lab results question",
@@ -16,7 +17,15 @@ const QUICK_SUBJECTS = [
     "Other",
 ];
 
-export default function MessageModal({ open, onClose, onSend, patientName }: Props) {
+const CLINICIAN_SUBJECTS = [
+    "Lab results available",
+    "Care plan update",
+    "Appointment reminder",
+    "Follow-up required",
+    "Referral information",
+];
+
+export default function MessageModal({ open, onClose, onSend, patientName, mode = "patient" }: Props) {
     const [subject, setSubject] = useState("");
     const [body, setBody] = useState("");
     const [sent, setSent] = useState(false);
@@ -42,8 +51,8 @@ export default function MessageModal({ open, onClose, onSend, patientName }: Pro
                     <div className="msg-header-left">
                         <div className="msg-icon">✉</div>
                         <div>
-                            <div className="msg-title">Message Your Care Team</div>
-                            <div className="msg-subtitle">Dr. Emily Chen · Primary Care</div>
+                            <div className="msg-title">{mode === "clinician" ? `Message ${patientName}` : "Message Your Care Team"}</div>
+                            <div className="msg-subtitle">{mode === "clinician" ? "Patient Portal · Secure Message" : "Dr. Emily Chen · Primary Care"}</div>
                         </div>
                     </div>
                     <button className="msg-close" onClick={onClose}>✕</button>
@@ -53,7 +62,7 @@ export default function MessageModal({ open, onClose, onSend, patientName }: Pro
                     <div className="msg-sent">
                         <div className="msg-sent-icon">✓</div>
                         <div className="msg-sent-title">Message Sent!</div>
-                        <div className="msg-sent-sub">Your care team will respond within 1-2 business days.</div>
+                        <div className="msg-sent-sub">{mode === "clinician" ? `${patientName} will be notified in their portal.` : "Your care team will respond within 1-2 business days."}</div>
                     </div>
                 ) : (
                     <>
@@ -61,7 +70,7 @@ export default function MessageModal({ open, onClose, onSend, patientName }: Pro
                             <div className="msg-field">
                                 <label className="msg-label">Subject</label>
                                 <div className="msg-quick-subjects">
-                                    {QUICK_SUBJECTS.map(s => (
+                                    {(mode === "clinician" ? CLINICIAN_SUBJECTS : PATIENT_SUBJECTS).map(s => (
                                         <button
                                             key={s}
                                             className={`msg-quick-btn ${subject === s ? "active" : ""}`}

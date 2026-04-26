@@ -69,3 +69,16 @@ export interface ScheduledAppointment {
   reason: string;
   status: "upcoming";
 }
+
+export interface PatientMessage {
+  id: string;
+  patientId: string;
+  patientName: string;
+  subject: string;
+  body: string;
+  sentAt: string;
+  read: boolean;
+  reply?: string;
+  patientRead?: boolean;
+  fromRole?: string;
+}

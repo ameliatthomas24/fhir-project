@@ -1,12 +1,14 @@
 ﻿import { useEffect, useState, useRef } from "react";
-import { getActiveMedications, getConditions, getObservations } from "../api/client";
-import type { ConditionSummary, MedicationSummary, Note, ObservationPoint, PatientSummary, ScheduledAppointment } from "../types";
+import { getActiveMedications, getConditions, getObservations, getNotes, createNote, getAppointments, createAppointment, getMessages, sendMessage, markMessageRead, replyToMessage, markMessagePatientRead } from "../api/client";
+import type { ConditionSummary, MedicationSummary, Note, ObservationPoint, PatientMessage, PatientSummary, ScheduledAppointment } from "../types";
 import CareRecommendations from "./CareRecommendations";
 import ChatWidget from "./ChatWidget";
 import AppointmentModal from "./AppointmentModal";
 import NoteModal from "./NoteModal";
 import MessageModal from "./MessageModal";
-import ClinicianInbox, { type PatientMessage } from "./ClinicianInbox";
+import ClinicianInbox from "./ClinicianInbox";
+import PatientInbox from "./PatientInbox";
+import { uid } from "../utils";
 import "./PatientRecord.css";
 
 interface Props {
@@ -205,20 +207,36 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
     }, [toastMsg]);
 
     function handleSaveNote(content: string) {
-        setNotes(prev => [{
-            id: crypto.randomUUID(),
-            content,
-            createdAt: new Date().toISOString(),
-            author: portal,
-        }, ...prev]);
+        const id = uid();
+        const createdAt = new Date().toISOString();
+        setNotes(prev => [{ id, content, createdAt, author: portal }, ...prev]);
         setToastMsg("Note saved.");
         setTab("notes");
+        createNote(patient.id, { id, content, createdAt, author: portal }).catch(console.error);
     }
 
     function handleSchedule(appt: ScheduledAppointment) {
         setAppointments(prev => [appt, ...prev]);
         setToastMsg(`Appointment confirmed for ${formatDate(appt.date)} at ${formatTime(appt.time)}`);
         setTab("visits");
+        createAppointment(patient.id, appt).catch(console.error);
+
+        const notifId = uid();
+        const sentAt = new Date().toISOString();
+        const fromRole = portal === "clinician" ? "clinician" : "patient";
+        const body = `A new appointment has been scheduled:\n\n📅 ${formatDate(appt.date)} at ${formatTime(appt.time)}\n${appt.type === "in-person" ? "🏥 In-Person" : "💻 Virtual"}\n📋 Reason: ${appt.reason}`;
+        const notif: PatientMessage = {
+            id: notifId,
+            patientId: patient.id,
+            patientName: patient.full_name,
+            subject: "📅 New Appointment Scheduled",
+            body,
+            sentAt,
+            read: false,
+            fromRole,
+        };
+        setMessages(prev => [notif, ...prev]);
+        sendMessage(patient.id, { id: notifId, patientName: patient.full_name, subject: notif.subject, body, sentAt, fromRole }).catch(console.error);
     }
 
     useEffect(() => {
@@ -227,6 +245,12 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
             .then(([obs, meds, conds]) => { setObservations(obs); setMedications(meds); setConditions(conds); })
             .catch(err => setError(err instanceof Error ? err.message : "Failed to load"))
             .finally(() => setLoading(false));
+    }, [patient.id]);
+
+    useEffect(() => {
+        getNotes(patient.id).then(setNotes).catch(console.error);
+        getAppointments(patient.id).then(setAppointments).catch(console.error);
+        getMessages(patient.id).then(setMessages).catch(console.error);
     }, [patient.id]);
 
     useEffect(() => {
@@ -312,33 +336,16 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
         return `HbA1c ${v.toFixed(1)}% — above target. Review glycemic management plan.`;
     }
 
-    // Compute % change between two most recent readings for a code set, null if insufficient data
-    function trendBadge(codes: Set<string>): { text: string; pos: boolean } | null {
-        const sorted = observations
-            .filter(o => codes.has(o.code) && o.value != null)
-            .sort((a, b) => (b.effective_date ?? "").localeCompare(a.effective_date ?? ""));
-        if (sorted.length < 2 || sorted[1].value === 0) return null;
-        const pct = ((sorted[0].value! - sorted[1].value!) / sorted[1].value!) * 100;
-        return { text: `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`, pos: pct >= 0 };
-    }
-
-    function riskLevel(pct: number): string {
-        return pct < 30 ? "Low" : pct < 60 ? "Moderate" : "High";
-    }
-
-    function hba1cSummary(): string {
-        if (!latestHba1c || latestHba1c.value == null)
-            return "No lab data available yet. Check back after upcoming results.";
-        const v = latestHba1c.value;
-        if (v < 5.7) return `HbA1c ${v.toFixed(1)}% — within normal range, well-controlled.`;
-        if (v < 6.5) return `HbA1c ${v.toFixed(1)}% — pre-diabetes range. Close monitoring recommended.`;
-        if (v <= 7.0) return `HbA1c ${v.toFixed(1)}% — diabetes, reasonably controlled. Maintain current regimen.`;
-        return `HbA1c ${v.toFixed(1)}% — above target. Review glycemic management plan.`;
-    }
-
     const riskColor = mlRisk?.risk_label === "High" ? "#ef4444" : mlRisk?.risk_label === "Moderate" ? "#f59e0b" : "#10b981";
     const riskBg = mlRisk?.risk_label === "High" ? "#fee2e2" : mlRisk?.risk_label === "Moderate" ? "#fef3c7" : "#dcfce7";
     const riskText = mlRisk?.risk_label === "High" ? "#991b1b" : mlRisk?.risk_label === "Moderate" ? "#92400e" : "#166534";
+
+    const clinicianUnread = messages.filter(m =>
+        m.fromRole === "clinician" ? (!!m.reply && !m.patientRead) : !m.read
+    ).length;
+    const patientUnread = messages.filter(m =>
+        m.fromRole === "clinician" ? !m.read : (!!m.reply && !m.patientRead)
+    ).length;
 
     const tabs: { id: Tab; label: string }[] = [
         { id: "overview", label: "Overview" },
@@ -348,7 +355,8 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
         { id: "notes", label: "Clinical Notes" },
         { id: "ml-risk", label: "ML Risk Analysis" },
         { id: "care-plan", label: "✦ Care Plan" },
-        ...(portal === "clinician" ? [{ id: "inbox" as Tab, label: "📬 Inbox" }] : []),
+        ...(portal === "clinician" ? [{ id: "inbox" as Tab, label: `📬 Inbox${clinicianUnread > 0 ? ` (${clinicianUnread})` : ""}` }] : []),
+        ...(portal === "patient" ? [{ id: "inbox" as Tab, label: `📬 Inbox${patientUnread > 0 ? ` (${patientUnread})` : ""}` }] : []),
     ];
 
     return (
@@ -369,10 +377,10 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                 <div className="pr-actions">
                     {portal === "patient" ? (
                         <button className="pr-btn pr-btn-primary" onClick={() => setMessageOpen(true)}>
-                            ✉ Send a Message
+                            ✉ Message Clinician
                         </button>
                     ) : (
-                        <button className="pr-btn pr-btn-primary">✉ Message Patient</button>
+                        <button className="pr-btn pr-btn-primary" onClick={() => setMessageOpen(true)}>✉ Message Patient</button>
                     )}
                     <button className="pr-btn" onClick={() => setNoteOpen(true)}>+ Add Note</button>
                     <button className="pr-btn" onClick={() => setScheduleOpen(true)}>📅 Schedule Appointment</button>
@@ -667,8 +675,31 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                         {tab === "inbox" && portal === "clinician" && (
                             <ClinicianInbox
                                 messages={messages}
-                                onMarkRead={id => setMessages(prev => prev.map(m => m.id === id ? { ...m, read: true } : m))}
-                                onReply={(id, reply) => setMessages(prev => prev.map(m => m.id === id ? { ...m, reply } : m))}
+                                onMarkRead={id => {
+                                    setMessages(prev => prev.map(m => m.id === id ? { ...m, read: true } : m));
+                                    markMessageRead(patient.id, id).catch(console.error);
+                                }}
+                                onReply={(id, reply) => {
+                                    setMessages(prev => prev.map(m => m.id === id ? { ...m, reply, patientRead: false } : m));
+                                    replyToMessage(patient.id, id, reply).catch(console.error);
+                                }}
+                            />
+                        )}
+                        {tab === "inbox" && portal === "patient" && (
+                            <PatientInbox
+                                messages={messages}
+                                onPatientMarkRead={id => {
+                                    setMessages(prev => prev.map(m => m.id === id ? { ...m, patientRead: true } : m));
+                                    markMessagePatientRead(patient.id, id).catch(console.error);
+                                }}
+                                onMarkRead={id => {
+                                    setMessages(prev => prev.map(m => m.id === id ? { ...m, read: true } : m));
+                                    markMessageRead(patient.id, id).catch(console.error);
+                                }}
+                                onReply={(id, reply) => {
+                                    setMessages(prev => prev.map(m => m.id === id ? { ...m, reply, patientRead: false } : m));
+                                    replyToMessage(patient.id, id, reply).catch(console.error);
+                                }}
                             />
                         )}
                         {tab === "ml-risk" && (
@@ -773,17 +804,15 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                 open={messageOpen}
                 onClose={() => setMessageOpen(false)}
                 patientName={patient.full_name}
+                mode={portal === "clinician" ? "clinician" : "patient"}
                 onSend={(body, subject) => {
-                    setMessages(prev => [{
-                        id: crypto.randomUUID(),
-                        patientId: patient.id,
-                        patientName: patient.full_name,
-                        subject,
-                        body,
-                        sentAt: new Date().toISOString(),
-                        read: false,
-                    }, ...prev]);
+                    const id = uid();
+                    const sentAt = new Date().toISOString();
+                    const fromRole = portal === "clinician" ? "clinician" : "patient";
+                    const msg: PatientMessage = { id, patientId: patient.id, patientName: patient.full_name, subject, body, sentAt, read: false, fromRole };
+                    setMessages(prev => [msg, ...prev]);
                     setMessageOpen(false);
+                    sendMessage(patient.id, { id, patientName: patient.full_name, subject, body, sentAt, fromRole }).catch(console.error);
                 }}
             />
 
