@@ -6,6 +6,39 @@ from models import ConditionSummary
 
 router = APIRouter()
 
+# Social determinant / administrative SNOMED codes Synthea adds as conditions.
+# These are not clinical diagnoses and should not appear in the problem list.
+_SOCIAL_DETERMINANT_CODES = {
+    "160903007", "160904001", "73438004",   # employment status
+    "224663009", "160498000", "473137001",  # education level
+    "224362006", "105539002",               # education
+    "713458007", "415510000",               # transportation / access
+    "422587007", "32911000",                # social isolation / homelessness
+    "445281000124101", "428361000124107",   # medication review
+    "706893006", "248591000",               # IPV / abuse
+    "228273003",                            # unhealthy alcohol
+    "736236007",                            # mental stress (general)
+}
+
+
+def _is_clinical(raw: dict) -> bool:
+    """Return False for pure social-determinant or administrative conditions."""
+    for coding in raw.get("code", {}).get("coding", []):
+        if coding.get("code") in _SOCIAL_DETERMINANT_CODES:
+            return False
+    display = (
+        raw.get("code", {}).get("text") or
+        raw.get("code", {}).get("coding", [{}])[0].get("display", "")
+    ).lower()
+    # Exclude purely administrative findings Synthea creates
+    social_keywords = (
+        "employed", "employment", "school level", "education (", "educated to",
+        "transportation", "social isolation", "social contact", "medication review due",
+        "received higher education", "received primary", "received secondary",
+        "limited social",
+    )
+    return not any(kw in display for kw in social_keywords)
+
 
 def _simplify_condition(raw: dict) -> ConditionSummary:
     code_block = raw.get("code", {})
@@ -48,4 +81,4 @@ async def get_conditions(
         "_count": count,
     })
     entries = extract_bundle_entries(bundle)
-    return [_simplify_condition(c) for c in entries]
+    return [_simplify_condition(c) for c in entries if _is_clinical(c)]

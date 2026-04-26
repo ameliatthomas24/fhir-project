@@ -16,6 +16,7 @@ export interface ObservationPoint {
   unit?: string;
   effective_date?: string;
   status: string;
+  category?: string;
 }
 
 export interface MedicationSummary {

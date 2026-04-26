@@ -36,7 +36,9 @@ function byCode(obs: ObservationPoint[], codes: Set<string>) {
 
 function formatDate(d?: string) {
     if (!d) return "—";
-    const [year, month, day] = d.split("-").map(Number);
+    const datePart = d.split("T")[0];
+    const [year, month, day] = datePart.split("-").map(Number);
+    if (!year || !month || !day) return "—";
     return new Date(year, month - 1, day).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
@@ -482,22 +484,27 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                         {tab === "labs" && (
                             <div className="pr-card">
                                 <div className="pr-card-title" style={{ marginBottom: "1rem" }}>Lab Results</div>
-                                {observations.length === 0 ? <p className="pr-empty">No lab results available</p> : (
-                                    <table className="pr-table">
-                                        <thead><tr><th>Test</th><th>Value</th><th>Unit</th><th>Date</th><th>Status</th></tr></thead>
-                                        <tbody>
-                                            {observations.slice(0, 40).map(o => (
-                                                <tr key={o.id}>
-                                                    <td>{o.display}</td>
-                                                    <td style={{ fontWeight: 600 }}>{o.value ?? "—"}</td>
-                                                    <td style={{ color: "#64748b" }}>{o.unit ?? "—"}</td>
-                                                    <td>{formatDate(o.effective_date)}</td>
-                                                    <td><span className="pr-status">{o.status}</span></td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                )}
+                                {(() => {
+                                    const clinicalObs = observations.filter(
+                                        o => o.category === "laboratory" || o.category === "vital-signs"
+                                    );
+                                    return clinicalObs.length === 0 ? <p className="pr-empty">No lab results available</p> : (
+                                        <table className="pr-table">
+                                            <thead><tr><th>Test</th><th>Value</th><th>Unit</th><th>Date</th><th>Status</th></tr></thead>
+                                            <tbody>
+                                                {clinicalObs.slice(0, 60).map(o => (
+                                                    <tr key={`${o.id}-${o.code}`}>
+                                                        <td>{o.display}</td>
+                                                        <td style={{ fontWeight: 600 }}>{o.value ?? "—"}</td>
+                                                        <td style={{ color: "#64748b" }}>{o.unit ?? "—"}</td>
+                                                        <td>{formatDate(o.effective_date)}</td>
+                                                        <td><span className="pr-status">{o.status}</span></td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    );
+                                })()}
                             </div>
                         )}
 
