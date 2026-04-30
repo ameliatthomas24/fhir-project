@@ -11,10 +11,13 @@ jobs:
     steps:
       - name: Deploy to DigitalOcean
         uses: appleboy/ssh-action@v0.1.10
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
+          envs: GEMINI_API_KEY
           script: |
             cd ~/fhir-project # Path on your server
             git pull origin main
