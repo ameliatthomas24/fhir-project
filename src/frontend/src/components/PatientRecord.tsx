@@ -427,7 +427,6 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
 
                         <div className="pr-problems-hdr">
                             <span className="pr-section-title">Latest Problems</span>
-                            <button className="pr-view-all">View All</button>
                         </div>
                         <div className="pr-problems">
                             {conditions.length === 0 ? (
