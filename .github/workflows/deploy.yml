@@ -15,6 +15,7 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
+          envs: ${{ secrets.GEMINI_API_KEY }}
           script: |
             cd ~/fhir-project # Path on your server
             git pull origin main
