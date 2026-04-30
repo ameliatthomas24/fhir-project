@@ -158,7 +158,7 @@ async def chat(patient_id: str, request: ChatRequest):
     def call_gemini() -> str:
         genai.configure(api_key=GEMINI_API_KEY)
         model = genai.GenerativeModel(
-            "gemini-1.5-flash",
+            "gemini-2.5-flash",
             system_instruction=system_prompt,
         )
         history = [
