@@ -37,6 +37,7 @@ _SOCIAL_KEYWORDS = (
     "unhealthy alcohol", "alcohol misuse",
     "not in labor", "not in labour",
     "intimate partner",
+    "misuses drugs", "drug misuse", "substance abuse", "drug abuse",
 )
 
 
