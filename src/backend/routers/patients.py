@@ -49,6 +49,7 @@ async def list_patients(
     params: dict = {
         "_count": count,
         "_elements": "id,name,birthDate,gender,telecom,address",
+        "_has:Observation:patient:code": "39156-5",
     }
     if name:
         params["name"] = name
