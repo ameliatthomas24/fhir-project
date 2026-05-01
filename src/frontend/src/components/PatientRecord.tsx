@@ -429,14 +429,6 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
 
                         <hr className="pr-hr" />
 
-                        <div className="pr-section-title">Allergies</div>
-                        <div className="pr-allergies">
-                            <span className="pr-allergy">💊 Penicillin</span>
-                            <span className="pr-allergy">💊 Sulfa Drugs</span>
-                        </div>
-
-                        <hr className="pr-hr" />
-
                         <div className="pr-problems-hdr">
                             <span className="pr-section-title">Latest Problems</span>
                         </div>
@@ -523,7 +515,7 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                                         {!latestHba1c && !latestLDL && !latestHDL && !latestTrig && (
                                             <p className="pr-empty">No lab data available</p>
                                         )}
-                                        <div className="pr-ai-strip">
+                                        <div className="pr-ai-strip" onClick={() => setTab("care-plan")}>
                                             <span className="pr-ai-star">✦</span>
                                             <div>
                                                 <div className="pr-ai-strip-title">AI Assistant Report</div>
