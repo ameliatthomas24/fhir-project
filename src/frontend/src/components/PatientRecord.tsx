@@ -429,12 +429,6 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
 
                         <hr className="pr-hr" />
 
-                        <div className="pr-section-title">Allergies</div>
-                        <div className="pr-allergies">
-                            <span className="pr-allergy">💊 Penicillin</span>
-                            <span className="pr-allergy">💊 Sulfa Drugs</span>
-                        </div>
-
                         <hr className="pr-hr" />
 
                         <div className="pr-problems-hdr">

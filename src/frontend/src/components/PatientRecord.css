@@ -209,21 +209,6 @@
     display: block;
 }
 
-.pr-allergies {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
-.pr-allergy {
-    font-size: 12px;
-    padding: 4px 10px;
-    border-radius: 20px;
-    background: #f1f5f9;
-    color: #475569;
-    border: 1px solid #e2e8f0;
-}
-
 .pr-problems-hdr {
     display: flex;
     justify-content: space-between;
@@ -256,15 +241,11 @@
     padding: 8px 10px;
     border: 1px solid #f1f5f9;
     border-radius: 8px;
-    cursor: pointer;
+    cursor: default;
     font-size: 13px;
     color: #334155;
     transition: background 0.1s;
 }
-
-    .pr-problem:hover {
-        background: #f8fafc;
-    }
 
 .pr-problem-icon {
     font-size: 12px;
