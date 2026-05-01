@@ -115,7 +115,7 @@ function LabBar({ label, value, max, unit }: { label: string; value: number; max
     );
 }
 
-function GlucoseChart({ data }: { data: ObservationPoint[] }) { 
+function GlucoseChart({ data, mode = "glucose" }: { data: ObservationPoint[], mode?: "glucose" | "hba1c" }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -148,10 +148,12 @@ function GlucoseChart({ data }: { data: ObservationPoint[] }) {
         ctx.fillRect(pad.left, y180, cw, y70 - y180);
 
         ctx.beginPath(); ctx.setLineDash([5, 4]); ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 1;
-        ctx.moveTo(pad.left, yS(135)); ctx.lineTo(pad.left + cw, yS(135)); ctx.stroke();
+        const targetLine = mode === "hba1c" ? 7 : 135;
+        ctx.moveTo(pad.left, yS(targetLine)); ctx.lineTo(pad.left + cw, yS(targetLine)); ctx.stroke();
         ctx.setLineDash([]);
 
-        [45, 90, 135, 180].forEach(v => {
+        const gridLines = mode === "hba1c" ? [4, 5, 6, 7, 8, 9] : [45, 90, 135, 180];
+        gridLines.forEach(v => {
             if (v < minV || v > maxV) return;
             ctx.beginPath(); ctx.strokeStyle = "#f8fafc"; ctx.lineWidth = 1;
             ctx.moveTo(pad.left, yS(v)); ctx.lineTo(pad.left + cw, yS(v)); ctx.stroke();
@@ -507,7 +509,7 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                                             <span className={`pr-chart-pill ${chartMode === "hba1c" ? "active" : ""}`} onClick={() => setChartMode("hba1c")} style={{ cursor: "pointer" }}>HbA1c</span>
                                         </div>
                                     </div>
-                                    <GlucoseChart data={chartMode === "glucose" ? glucoseHistory : byCode(observations, HBA1C_CODES)} />
+                                    <GlucoseChart data={chartMode === "glucose" ? glucoseHistory : byCode(observations, HBA1C_CODES)} mode={chartMode} />
                                 </div>
 
                                 <div className="pr-two-col">
