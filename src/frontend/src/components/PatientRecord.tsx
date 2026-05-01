@@ -184,6 +184,7 @@ function GlucoseChart({ data }: { data: ObservationPoint[] }) {
 type MlRisk = { insufficient_data?: boolean; risk_score: number; risk_label: string; top_factors: { feature: string; importance: number }[]; inputs?: Record<string, number | string> };
 
 export default function PatientRecord({ patient, portal, onBack }: Props) {
+    const [chartMode, setChartMode] = useState<"glucose" | "hba1c">("glucose");
     const [tab, setTab] = useState<Tab>("overview");
     const [observations, setObservations] = useState<ObservationPoint[]>([]);
     const [medications, setMedications] = useState<MedicationSummary[]>([]);
@@ -502,12 +503,11 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                                     <div className="pr-card-hdr">
                                         <span className="pr-card-title">📈 Blood Glucose Timeline</span>
                                         <div className="pr-chart-pills">
-                                            <span className="pr-chart-pill active">Blood Glucose</span>
-                                            <span className="pr-chart-pill">Target Range</span>
-                                            <span className="pr-chart-pill">HbA1c</span>
+                                            <span className={`pr-chart-pill ${chartMode === "glucose" ? "active" : ""}`} onClick={() => setChartMode("glucose")} style={{ cursor: "pointer" }}>Blood Glucose</span>
+                                            <span className={`pr-chart-pill ${chartMode === "hba1c" ? "active" : ""}`} onClick={() => setChartMode("hba1c")} style={{ cursor: "pointer" }}>HbA1c</span>
                                         </div>
                                     </div>
-                                    <GlucoseChart data={glucoseHistory} />
+                                    <GlucoseChart data={chartMode === "glucose" ? glucoseHistory : byCode(observations, HBA1C_CODES)} />
                                 </div>
 
                                 <div className="pr-two-col">
@@ -532,10 +532,10 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
 
                                     <div className="pr-card">
                                         <div className="pr-card-title" style={{ marginBottom: "1rem" }}>⚠ Risk Forecast</div>
-                                        {latestHba1c ? [
-                                            { name: "Cardiovascular Risk", pct: cvRisk, color: "#3b82f6" },
-                                            { name: "Neuropathy Risk", pct: neuroRisk, color: "#10b981" },
-                                            { name: "Retinopathy Risk", pct: retinoRisk, color: "#f59e0b" },
+                                        {hba1cVal ? [
+                                            { name: "Cardiovascular Risk", level: "Moderate", factors: "Blood Pressure, Cholesterol", pct: cvRisk!, color: "#3b82f6" },
+                                            { name: "Neuropathy Risk", level: "Low", factors: "Good glucose control", pct: neuroRisk!, color: "#10b981" },
+                                            { name: "Retinopathy Risk", level: "Moderate", factors: "Diabetes, Duration", pct: retinoRisk!, color: "#f59e0b" },
                                         ].map(r => (
                                             <div key={r.name} className="pr-risk">
                                                 <div className="pr-risk-text">
@@ -545,7 +545,7 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                                                 </div>
                                                 <CircleRisk pct={r.pct} color={r.color} />
                                             </div>
-                                        )) : <p className="pr-empty">No HbA1c data available for risk forecast.</p>}
+                                        )) : <p className="pr-empty">No HbA1c data available</p>}
                                     </div>
                                 </div>
                             </>
