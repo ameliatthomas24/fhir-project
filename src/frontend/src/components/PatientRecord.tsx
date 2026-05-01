@@ -137,8 +137,9 @@ function GlucoseChart({ data, mode = "glucose" }: { data: ObservationPoint[], mo
         const cw = w - pad.left - pad.right;
         const ch = h - pad.top - pad.bottom;
         const vals = data.map(d => d.value ?? 0);
-        const minV = Math.max(0, Math.min(...vals) - 20);
-        const maxV = Math.max(...vals) + 20;
+        const padding = mode === "hba1c" ? 0.5 : 20;
+        const minV = Math.max(0, Math.min(...vals) - padding);
+        const maxV = Math.max(...vals) + padding;
         const xS = (i: number) => pad.left + (i / Math.max(data.length - 1, 1)) * cw;
         const yS = (v: number) => pad.top + ch - ((v - minV) / (maxV - minV)) * ch;
 
