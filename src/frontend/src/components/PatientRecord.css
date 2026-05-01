@@ -253,8 +253,7 @@
 }
 
 .pr-problem-chev {
-    margin-left: auto;
-    color: #cbd5e1;
+    display: none;
 }
 
 .pr-ask-ai {
