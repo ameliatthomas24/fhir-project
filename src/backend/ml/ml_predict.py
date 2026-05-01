@@ -1,3 +1,4 @@
+import math
 import pickle
 import pandas as pd
 from pathlib import Path
@@ -39,19 +40,28 @@ def generate_risk_assessment(patient_profile: PatientProfile, pipeline) -> Diabe
         "hypertension":        patient_profile.hypertension,
         "heart_disease":       patient_profile.heart_disease,
     }])
+    # LLM was used to figure out the logic and math for this
+    model_output = float(pipeline.predict_proba(patient_input_data)[0][1])
 
-    # Risk probability
-    probability_score = float(pipeline.predict_proba(patient_input_data)[0][1])
+    glycated_hb = patient_profile.HbA1c_level
+    ada_threshold = 6.5
+    steepness = 2.5
+    glycaemic_index = 1.0 / (1.0 + math.exp(-steepness * (glycated_hb - ada_threshold)))
 
-    # Risk label
-    if probability_score < 0.3:
+    blended_score = model_output if model_output > 0.10 else glycaemic_index
+
+    LOW_CUTOFF = 0.25
+    MOD_CUTOFF = 0.55
+    if blended_score < LOW_CUTOFF:
         risk_level = "Low"
-    elif probability_score < 0.6:
+    elif blended_score < MOD_CUTOFF:
         risk_level = "Moderate"
     else:
         risk_level = "High"
 
-    # Top features 
+    probability_score = blended_score
+
+    # Per-patient feature contributions
     feature_processor = pipeline.named_steps["pre"]
     trained_classifier = pipeline.named_steps["clf"]
 
@@ -60,16 +70,22 @@ def generate_risk_assessment(patient_profile: PatientProfile, pipeline) -> Diabe
         .get_feature_names_out(CATEGORICAL_COLUMNS)
     )
     combined_feature_names = processed_categorical_names + NUMERICAL_COLUMNS
-    influence_rankings = trained_classifier.feature_importances_
 
-    key_risk_drivers = (
-        pd.Series(influence_rankings, index=combined_feature_names)
+    # Weight this patient's preprocessed values by global importances
+    preprocessed_values = feature_processor.transform(patient_input_data)[0]
+    feature_importances = trained_classifier.feature_importances_
+    contributions = [abs(float(v) * float(w)) for v, w in zip(preprocessed_values, feature_importances)]
+    total = sum(contributions) or 1.0
+
+    top_series = (
+        pd.Series(contributions, index=combined_feature_names)
         .sort_values(ascending=False)
         .head(5)
-        .reset_index()
-        .rename(columns={"index": "feature", 0: "importance"})
-        .to_dict(orient="records")
     )
+    key_risk_drivers = [
+        {"feature": name, "importance": round(val / total, 4)}
+        for name, val in top_series.items()
+    ]
 
     return DiabetesPrediction(
         risk_score=round(probability_score, 4),

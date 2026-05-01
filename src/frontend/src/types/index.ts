@@ -16,6 +16,7 @@ export interface ObservationPoint {
   unit?: string;
   effective_date?: string;
   status: string;
+  category?: string;
 }
 
 export interface MedicationSummary {
@@ -40,6 +41,14 @@ export interface RecommendationResponse {
   recommendations: Recommendation[];
 }
 
+export interface ConditionSummary {
+  id: string;
+  patient_id: string;
+  display: string;
+  onset_date?: string;
+  clinical_status?: string;
+}
+
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -59,4 +68,17 @@ export interface ScheduledAppointment {
   type: "in-person" | "virtual";
   reason: string;
   status: "upcoming";
+}
+
+export interface PatientMessage {
+  id: string;
+  patientId: string;
+  patientName: string;
+  subject: string;
+  body: string;
+  sentAt: string;
+  read: boolean;
+  reply?: string;
+  patientRead?: boolean;
+  fromRole?: string;
 }

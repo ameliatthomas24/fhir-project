@@ -40,6 +40,22 @@ export default defineConfig({
         target: "http://hapi-backend:8000",
         changeOrigin: true,
       },
+      "/conditions": {
+        target: "http://hapi-backend:8000",
+        changeOrigin: true,
+      },
+      "/notes": {
+        target: "http://hapi-backend:8000",
+        changeOrigin: true,
+      },
+      "/appointments": {
+        target: "http://hapi-backend:8000",
+        changeOrigin: true,
+      },
+      "/messages": {
+        target: "http://hapi-backend:8000",
+        changeOrigin: true,
+      },
     },
   },
 });

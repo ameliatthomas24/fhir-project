@@ -1,16 +1,8 @@
 ﻿import { useState } from "react";
+import type { PatientMessage } from "../types";
 import "./ClinicianInbox.css";
 
-export interface PatientMessage {
-    id: string;
-    patientId: string;
-    patientName: string;
-    subject: string;
-    body: string;
-    sentAt: string;
-    read: boolean;
-    reply?: string;
-}
+export type { PatientMessage };
 
 interface Props {
     messages: PatientMessage[];
@@ -26,8 +18,12 @@ export default function ClinicianInbox({ messages, onMarkRead, onReply }: Props)
     function handleSelect(msg: PatientMessage) {
         setSelected(msg);
         setReplyText("");
-        setReplySent(false);
-        if (!msg.read) onMarkRead(msg.id);
+        setReplySent(false); // reset so "Reply sent" doesn't bleed across messages
+        if (msg.fromRole === "clinician" && msg.reply && !msg.patientRead) {
+            onMarkRead(msg.id);
+        } else if (msg.fromRole !== "clinician" && !msg.read) {
+            onMarkRead(msg.id);
+        }
     }
 
     function handleReply() {
@@ -48,16 +44,15 @@ export default function ClinicianInbox({ messages, onMarkRead, onReply }: Props)
         return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     }
 
-    const unreadCount = messages.filter(m => !m.read).length;
+    function isUnread(m: PatientMessage): boolean {
+        return m.fromRole === "clinician" ? (!!m.reply && !m.patientRead) : !m.read;
+    }
 
-    // Group by patient
-    const byPatient: Record<string, PatientMessage[]> = {};
-    messages.forEach(m => {
-        if (!byPatient[m.patientId]) byPatient[m.patientId] = [];
-        byPatient[m.patientId].push(m);
-    });
+    const unreadCount = messages.filter(isUnread).length;
 
-    if (messages.length === 0) {
+    const visibleMessages = messages.filter(m => m.fromRole !== "clinician" || !!m.reply);
+
+    if (visibleMessages.length === 0) {
         return (
             <div className="inbox-empty">
                 <div className="inbox-empty-icon">📭</div>
@@ -77,28 +72,38 @@ export default function ClinicianInbox({ messages, onMarkRead, onReply }: Props)
                         <span className="inbox-unread-badge">{unreadCount} new</span>
                     )}
                 </div>
-                {messages
+                {[...visibleMessages]
                     .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime())
-                    .map(msg => (
-                        <div
-                            key={msg.id}
-                            className={`inbox-item ${selected?.id === msg.id ? "selected" : ""} ${!msg.read ? "unread" : ""}`}
-                            onClick={() => handleSelect(msg)}
-                        >
-                            <div className="inbox-item-avatar">
-                                {msg.patientName.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase()}
-                            </div>
-                            <div className="inbox-item-content">
-                                <div className="inbox-item-top">
-                                    <span className="inbox-item-name">{msg.patientName}</span>
-                                    <span className="inbox-item-time">{formatTime(msg.sentAt)}</span>
+                    .map(msg => {
+                        const unread = isUnread(msg);
+                        const fromClinician = msg.fromRole === "clinician";
+                        return (
+                            <div
+                                key={msg.id}
+                                className={`inbox-item ${selected?.id === msg.id ? "selected" : ""} ${unread ? "unread" : ""}`}
+                                onClick={() => handleSelect(msg)}
+                            >
+                                <div className="inbox-item-avatar">
+                                    {msg.patientName.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase()}
                                 </div>
-                                <div className="inbox-item-subject">{msg.subject}</div>
-                                <div className="inbox-item-preview">{msg.body.slice(0, 60)}...</div>
+                                <div className="inbox-item-content">
+                                    <div className="inbox-item-top">
+                                        <span className="inbox-item-name">{msg.patientName}</span>
+                                        <span className="inbox-item-time">{formatTime(msg.sentAt)}</span>
+                                    </div>
+                                    <div className="inbox-item-subject">
+                                        {fromClinician ? `↩ ${msg.subject}` : msg.subject}
+                                    </div>
+                                    <div className="inbox-item-preview">
+                                        {fromClinician
+                                            ? `Patient replied: ${(msg.reply ?? "").slice(0, 50)}...`
+                                            : `${msg.body.slice(0, 60)}...`}
+                                    </div>
+                                </div>
+                                {unread && <div className="inbox-item-dot" />}
                             </div>
-                            {!msg.read && <div className="inbox-item-dot" />}
-                        </div>
-                    ))}
+                        );
+                    })}
             </div>
 
             {/* Thread view */}
@@ -124,26 +129,41 @@ export default function ClinicianInbox({ messages, onMarkRead, onReply }: Props)
                         <div className="inbox-thread-body">
                             <div className="inbox-thread-subject">{selected.subject}</div>
 
-                            <div className="inbox-bubble inbox-bubble-patient">
-                                <div className="inbox-bubble-label">Patient</div>
-                                <div className="inbox-bubble-text">{selected.body}</div>
-                            </div>
-
-                            {selected.reply && (
-                                <div className="inbox-bubble inbox-bubble-clinician">
-                                    <div className="inbox-bubble-label">You (Dr. Emily Chen)</div>
-                                    <div className="inbox-bubble-text">{selected.reply}</div>
-                                </div>
-                            )}
-
-                            {replySent && !selected.reply && (
-                                <div className="inbox-reply-sent">
-                                    ✓ Reply sent successfully
-                                </div>
+                            {selected.fromRole === "clinician" ? (
+                                <>
+                                    {/* Clinician sent this — show their message on right, patient reply on left */}
+                                    <div className="inbox-bubble inbox-bubble-clinician">
+                                        <div className="inbox-bubble-label">You (Dr. Emily Chen)</div>
+                                        <div className="inbox-bubble-text">{selected.body}</div>
+                                    </div>
+                                    {selected.reply && (
+                                        <div className="inbox-bubble inbox-bubble-patient">
+                                            <div className="inbox-bubble-label">Patient</div>
+                                            <div className="inbox-bubble-text">{selected.reply}</div>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <>
+                                    {/* Patient sent this — show their message on left, clinician reply on right */}
+                                    <div className="inbox-bubble inbox-bubble-patient">
+                                        <div className="inbox-bubble-label">Patient</div>
+                                        <div className="inbox-bubble-text">{selected.body}</div>
+                                    </div>
+                                    {selected.reply && (
+                                        <div className="inbox-bubble inbox-bubble-clinician">
+                                            <div className="inbox-bubble-label">You (Dr. Emily Chen)</div>
+                                            <div className="inbox-bubble-text">{selected.reply}</div>
+                                        </div>
+                                    )}
+                                    {replySent && !selected.reply && (
+                                        <div className="inbox-reply-sent">✓ Reply sent successfully</div>
+                                    )}
+                                </>
                             )}
                         </div>
 
-                        {!selected.reply && !replySent && (
+                        {selected.fromRole !== "clinician" && !selected.reply && !replySent && (
                             <div className="inbox-reply-box">
                                 <textarea
                                     className="inbox-reply-input"
