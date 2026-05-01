@@ -429,6 +429,8 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
 
                         <hr className="pr-hr" />
 
+                        <hr className="pr-hr" />
+
                         <div className="pr-problems-hdr">
                             <span className="pr-section-title">Latest Problems</span>
                         </div>
