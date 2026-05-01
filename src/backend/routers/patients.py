@@ -61,6 +61,56 @@ async def list_patients(
     return [_simplify_patient(p) for p in entries]
 
 
+@router.get("/high-risk")
+async def get_high_risk_patients(
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user["role"] != "clinician":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Clinician access required")
+
+    bundle = await search_resource("Observation", {
+        "code": "4548-4,17856-6",
+        "_sort": "-date",
+        "_count": "200",
+        "_include": "Observation:patient",
+    })
+
+    entries = bundle.get("entry", [])
+    patients_by_id: dict = {}
+    latest_obs_by_patient: dict = {}
+
+    for entry in entries:
+        resource = entry.get("resource", {})
+        rt = resource.get("resourceType")
+        if rt == "Patient":
+            patients_by_id[resource["id"]] = resource
+        elif rt == "Observation":
+            value = resource.get("valueQuantity", {}).get("value")
+            if value is None:
+                continue
+            patient_id = resource.get("subject", {}).get("reference", "").split("/")[-1]
+            if patient_id not in latest_obs_by_patient:
+                latest_obs_by_patient[patient_id] = {
+                    "value": value,
+                    "date": resource.get("effectiveDateTime", ""),
+                }
+
+    results = []
+    for patient_id, obs in latest_obs_by_patient.items():
+        if obs["value"] > 8:
+            patient = patients_by_id.get(patient_id, {})
+            name_list = patient.get("name", [])
+            official = next((n for n in name_list if n.get("use") == "official"), None)
+            name_entry = official or (name_list[0] if name_list else {})
+            family = name_entry.get("family", "")
+            given = " ".join(name_entry.get("given", []))
+            full_name = f"{given} {family}".strip() or "Unknown"
+            results.append({"id": patient_id, "full_name": full_name, "hba1c": obs["value"], "date": obs["date"]})
+
+    results.sort(key=lambda x: x["hba1c"], reverse=True)
+    return results[:5]
+
+
 @router.get("/{patient_id}", response_model=PatientSummary)
 async def get_patient(
     patient_id: str,

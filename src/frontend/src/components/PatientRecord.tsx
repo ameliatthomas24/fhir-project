@@ -223,7 +223,7 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
         setAppointments(prev => [appt, ...prev]);
         setToastMsg(`Appointment confirmed for ${formatDate(appt.date)} at ${formatTime(appt.time)}`);
         setTab("visits");
-        createAppointment(patient.id, appt).catch(console.error);
+        createAppointment(patient.id, { ...appt, patient_name: patient.full_name }).catch(console.error);
 
         const notifId = uid();
         const sentAt = new Date().toISOString();

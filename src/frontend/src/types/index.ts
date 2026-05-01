@@ -68,6 +68,25 @@ export interface ScheduledAppointment {
   type: "in-person" | "virtual";
   reason: string;
   status: "upcoming";
+  patient_name?: string;
+}
+
+export interface AppointmentWithPatient {
+  id: string;
+  patient_id: string;
+  patient_name?: string;
+  date: string;
+  time: string;
+  type: "in-person" | "virtual";
+  reason: string;
+  status: string;
+}
+
+export interface HighRiskPatient {
+  id: string;
+  full_name: string;
+  hba1c: number;
+  date?: string;
 }
 
 export interface PatientMessage {

@@ -8,9 +8,10 @@ A web-based health portal for diabetes management built for the Georgia Tech CS-
 
 ## Deployment
 Our application is deployed at: www.healthybean.me
+
 To log in, use the following credentials:
-Username: clinician@demo.com
-Password: clinician123
+- Username: clinician@demo.com
+- Password: clinician123
 
 ## Features
 

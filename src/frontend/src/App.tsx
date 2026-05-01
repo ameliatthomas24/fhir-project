@@ -1,6 +1,7 @@
 import { useState } from "react";
 import PatientSearch from "./components/PatientSearch";
 import PatientRecord from "./components/PatientRecord";
+import ClinicianDashboard from "./components/ClinicianDashboard";
 import Login from "./components/Login";
 import { getToken, setToken, clearToken } from "./api/client";
 import type { LoginResponse } from "./api/client";
@@ -30,18 +31,16 @@ export default function App() {
     return <Login onLogin={handleLogin} />;
   }
 
+  if (portal === "clinician") {
+    return <ClinicianDashboard onLogout={handleLogout} />;
+  }
+
   return (
     <div className={`app ${portal === "patient" ? "patient-portal" : ""}`}>
       <header className="app-header">
         <span className="app-title">Diabetes Management Portal</span>
         <div className="portal-toggle">
-          <button className={`toggle-btn ${portal === "clinician" ? "active" : ""}`} onClick={() => setPortal("clinician")}>
-            Clinician Portal
-          </button>
-          <button className={`toggle-btn ${portal === "patient" ? "active" : ""}`} onClick={() => setPortal("patient")}>
-            Patient Portal
-          </button>
-          <button onClick={handleLogout} style={{ marginLeft: "1rem", fontSize: "13px", color: "#64748b", background: "none", border: "none", cursor: "pointer" }}>
+          <button onClick={handleLogout} style={{ fontSize: "13px", color: "#64748b", background: "none", border: "none", cursor: "pointer" }}>
             Log out
           </button>
         </div>
