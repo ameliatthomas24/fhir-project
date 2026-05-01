@@ -197,7 +197,7 @@ async def get_recommendations(
 
     def call_gemini() -> str:
         genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-2.5-flash")
         return model.generate_content(prompt).text
 
     loop = asyncio.get_event_loop()

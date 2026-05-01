@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ScheduledAppointment } from "../types";
+import { uid } from "../utils";
 import "./AppointmentModal.css";
 
 interface Props {
@@ -21,7 +22,7 @@ export default function AppointmentModal({ open, onClose, onSchedule }: Props) {
     function handleSubmit() {
         if (!date || !time) return;
         onSchedule({
-            id: crypto.randomUUID(),
+            id: uid(),
             date,
             time,
             type: apptType,

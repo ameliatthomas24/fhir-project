@@ -10,38 +10,70 @@ router = APIRouter()
 LOINC = {
     "glucose":        ["15074-8", "2339-0"],
     "hba1c":          ["4548-4", "17856-6"],
-    "blood_pressure": ["55284-4", "8480-6", "8462-4"],
+    "blood_pressure": ["85354-9", "55284-4", "8480-6", "8462-4"],
 }
 
 
-def _simplify_observation(raw: dict) -> ObservationPoint:
+def _simplify_observations(raw: dict) -> list[ObservationPoint]:
+    """Return one ObservationPoint per observation, expanding panel components (e.g. BP)."""
+    effective = raw.get("effectiveDateTime") or raw.get("effectivePeriod", {}).get("start")
+    status = raw.get("status", "unknown")
+    obs_id = raw.get("id", "")
+    category = next(
+        (c.get("code") for cat in raw.get("category", []) for c in cat.get("coding", [])),
+        None,
+    )
+
+    subject_ref = raw.get("subject", {}).get("reference", "")
+    patient_id = subject_ref.split("/")[-1] if "/" in subject_ref else subject_ref
+
+    components = raw.get("component", [])
+    if components:
+        points = []
+        for comp in components:
+            comp_coding = comp.get("code", {}).get("coding", [{}])[0]
+            comp_code = comp_coding.get("code", "")
+            comp_display = comp_coding.get("display") or comp.get("code", {}).get("text", "")
+            vq = comp.get("valueQuantity", {})
+            if vq.get("value") is not None:
+                points.append(ObservationPoint(
+                    id=obs_id,
+                    patient_id=patient_id,
+                    code=comp_code,
+                    display=comp_display,
+                    value=vq.get("value"),
+                    unit=vq.get("unit") or vq.get("code"),
+                    effective_date=effective,
+                    status=status,
+                    category=category,
+                ))
+        if points:
+            return points
+
     coding = raw.get("code", {}).get("coding", [{}])[0]
     code = coding.get("code", "")
     display = coding.get("display") or raw.get("code", {}).get("text", "Unknown")
     value_qty = raw.get("valueQuantity", {})
     value = value_qty.get("value")
     unit = value_qty.get("unit") or value_qty.get("code")
-    effective = raw.get("effectiveDateTime") or raw.get("effectivePeriod", {}).get("start")
 
-    subject_ref = raw.get("subject", {}).get("reference", "")
-    patient_id = subject_ref.split("/")[-1] if "/" in subject_ref else subject_ref
-
-    return ObservationPoint(
-        id=raw.get("id", ""),
+    return [ObservationPoint(
+        id=obs_id,
         patient_id=patient_id,
         code=code,
         display=display,
         value=value,
         unit=unit,
         effective_date=effective,
-        status=raw.get("status", "unknown"),
-    )
+        status=status,
+        category=category,
+    )]
 
 
 async def _fetch_observations(
     patient_id: str,
     codes: Optional[list[str]] = None,
-    count: int = 50,
+    count: int = 200,
 ) -> list[ObservationPoint]:
     params: dict = {
         "subject": patient_id,
@@ -53,7 +85,10 @@ async def _fetch_observations(
 
     bundle = await search_resource("Observation", params)
     entries = extract_bundle_entries(bundle)
-    return [_simplify_observation(o) for o in entries]
+    result = []
+    for o in entries:
+        result.extend(_simplify_observations(o))
+    return result
 
 
 @router.get("/{patient_id}", response_model=list[ObservationPoint])

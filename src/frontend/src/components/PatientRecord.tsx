@@ -1,12 +1,14 @@
 ﻿import { useEffect, useState, useRef } from "react";
-import { getActiveMedications, getObservations } from "../api/client";
-import type { MedicationSummary, Note, ObservationPoint, PatientSummary, ScheduledAppointment } from "../types";
+import { getActiveMedications, getConditions, getObservations, getNotes, createNote, getAppointments, createAppointment, getMessages, sendMessage, markMessageRead, replyToMessage, markMessagePatientRead } from "../api/client";
+import type { ConditionSummary, MedicationSummary, Note, ObservationPoint, PatientMessage, PatientSummary, ScheduledAppointment } from "../types";
 import CareRecommendations from "./CareRecommendations";
 import ChatWidget from "./ChatWidget";
 import AppointmentModal from "./AppointmentModal";
 import NoteModal from "./NoteModal";
 import MessageModal from "./MessageModal";
-import ClinicianInbox, { type PatientMessage } from "./ClinicianInbox";
+import ClinicianInbox from "./ClinicianInbox";
+import PatientInbox from "./PatientInbox";
+import { uid } from "../utils";
 import "./PatientRecord.css";
 
 interface Props {
@@ -38,7 +40,9 @@ function byCode(obs: ObservationPoint[], codes: Set<string>) {
 
 function formatDate(d?: string) {
     if (!d) return "—";
-    const [year, month, day] = d.split("-").map(Number);
+    const datePart = d.split("T")[0];
+    const [year, month, day] = datePart.split("-").map(Number);
+    if (!year || !month || !day) return "—";
     return new Date(year, month - 1, day).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
@@ -177,13 +181,14 @@ function GlucoseChart({ data }: { data: ObservationPoint[] }) {
     return <div ref={wrapRef} style={{ width: "100%" }}><canvas ref={canvasRef} /></div>;
 }
 
-type MlRisk = { risk_score: number; risk_label: string; top_factors: { feature: string; importance: number }[]; inputs?: Record<string, number | string> };
+type MlRisk = { insufficient_data?: boolean; risk_score: number; risk_label: string; top_factors: { feature: string; importance: number }[]; inputs?: Record<string, number | string> };
 
 export default function PatientRecord({ patient, portal, onBack }: Props) {
     const [chartMode, setChartMode] = useState<"glucose" | "hba1c">("glucose");
     const [tab, setTab] = useState<Tab>("overview");
     const [observations, setObservations] = useState<ObservationPoint[]>([]);
     const [medications, setMedications] = useState<MedicationSummary[]>([]);
+    const [conditions, setConditions] = useState<ConditionSummary[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [mlRisk, setMlRisk] = useState<MlRisk | null>(null);
@@ -203,31 +208,54 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
     }, [toastMsg]);
 
     function handleSaveNote(content: string) {
-        setNotes(prev => [{
-            id: crypto.randomUUID(),
-            content,
-            createdAt: new Date().toISOString(),
-            author: portal,
-        }, ...prev]);
+        const id = uid();
+        const createdAt = new Date().toISOString();
+        setNotes(prev => [{ id, content, createdAt, author: portal }, ...prev]);
         setToastMsg("Note saved.");
         setTab("notes");
+        createNote(patient.id, { id, content, createdAt, author: portal }).catch(console.error);
     }
 
     function handleSchedule(appt: ScheduledAppointment) {
         setAppointments(prev => [appt, ...prev]);
         setToastMsg(`Appointment confirmed for ${formatDate(appt.date)} at ${formatTime(appt.time)}`);
         setTab("visits");
+        createAppointment(patient.id, appt).catch(console.error);
+
+        const notifId = uid();
+        const sentAt = new Date().toISOString();
+        const fromRole = portal === "clinician" ? "clinician" : "patient";
+        const body = `A new appointment has been scheduled:\n\n📅 ${formatDate(appt.date)} at ${formatTime(appt.time)}\n${appt.type === "in-person" ? "🏥 In-Person" : "💻 Virtual"}\n📋 Reason: ${appt.reason}`;
+        const notif: PatientMessage = {
+            id: notifId,
+            patientId: patient.id,
+            patientName: patient.full_name,
+            subject: "📅 New Appointment Scheduled",
+            body,
+            sentAt,
+            read: false,
+            fromRole,
+        };
+        setMessages(prev => [notif, ...prev]);
+        sendMessage(patient.id, { id: notifId, patientName: patient.full_name, subject: notif.subject, body, sentAt, fromRole }).catch(console.error);
     }
 
     useEffect(() => {
         setLoading(true);
-        Promise.all([getObservations(patient.id), getActiveMedications(patient.id)])
-            .then(([obs, meds]) => { setObservations(obs); setMedications(meds); })
+        Promise.all([getObservations(patient.id), getActiveMedications(patient.id), getConditions(patient.id)])
+            .then(([obs, meds, conds]) => { setObservations(obs); setMedications(meds); setConditions(conds); })
             .catch(err => setError(err instanceof Error ? err.message : "Failed to load"))
             .finally(() => setLoading(false));
     }, [patient.id]);
 
     useEffect(() => {
+        getNotes(patient.id).then(setNotes).catch(console.error);
+        getAppointments(patient.id).then(setAppointments).catch(console.error);
+        getMessages(patient.id).then(setMessages).catch(console.error);
+    }, [patient.id]);
+
+    useEffect(() => {
+        setMlRisk(null);
         const token = localStorage.getItem("auth_token");
         fetch(`/predict/${patient.id}`, {
             headers: token ? { "Authorization": `Bearer ${token}` } : {}
@@ -250,14 +278,75 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
     const latestTrig = latestByCode(observations, TRIGLYCERIDE_CODES);
     const glucoseHistory = byCode(observations, GLUCOSE_CODES);
 
-    const hba1cVal = latestHba1c?.value ?? null;
-    const cvRisk = hba1cVal ? Math.min(99, Math.round(hba1cVal * 4 + 10)) : null;
-    const neuroRisk = hba1cVal ? Math.min(99, Math.round(hba1cVal * 2 + 3)) : null;
-    const retinoRisk = hba1cVal ? Math.min(99, Math.round(hba1cVal * 5 + 5)) : null;
+    // LLM was used to figure out the logic on how to intergrate the ml fixes to frontend
+    const hba1cVal = latestHba1c?.value ?? 6.5;
+    const SYSTOLIC_CODE = new Set(["8480-6"]);
+    const systolicReading = latestByCode(observations, SYSTOLIC_CODE);
+    const systolicBP = systolicReading?.value ?? 120;
+    const ldlReading = latestLDL?.value ?? 100;
+
+    const dob = patient.birth_date;
+    let ageYears = 55;
+    if (dob) {
+        const [yr, mo, dy] = dob.split("-").map(Number);
+        const msPerYear = 365.25 * 24 * 3600 * 1000;
+        ageYears = Math.floor((Date.now() - new Date(yr, mo - 1, dy).getTime()) / msPerYear);
+    }
+
+    const glycaemicBase = hba1cVal - 4.5;
+    const sbpExcess = Math.max(0, systolicBP - 110);
+    const ldlExcess = Math.max(0, ldlReading - 70);
+    const ageFactorCV = Math.max(0, ageYears - 30);
+    const cvRisk = Math.min(99, Math.max(5, Math.round(
+        glycaemicBase * 6 + sbpExcess * 0.5 + ldlExcess * 0.1 + ageFactorCV * 0.25
+    )));
+
+    const glucoseVal = latestGlucose?.value ?? 100;
+    const glucoseExcess = Math.max(0, glucoseVal - 80);
+    const ageFactorNeuro = Math.max(0, ageYears - 35);
+    const neuroRisk = Math.min(99, Math.max(3, Math.round(
+        glycaemicBase * 5 + glucoseExcess * 0.1 + ageFactorNeuro * 0.22
+    )));
+
+    const sbpExcessRetino = Math.max(0, systolicBP - 115);
+    const retinoRisk = Math.min(99, Math.max(3, Math.round(
+        glycaemicBase * 6.5 + sbpExcessRetino * 0.4 + ageFactorNeuro * 0.18
+    )));
+
+    // Compute % change between two most recent readings for a code set, null if insufficient data
+    function trendBadge(codes: Set<string>): { text: string; pos: boolean } | null {
+        const sorted = observations
+            .filter(o => codes.has(o.code) && o.value != null)
+            .sort((a, b) => (b.effective_date ?? "").localeCompare(a.effective_date ?? ""));
+        if (sorted.length < 2 || sorted[1].value === 0) return null;
+        const pct = ((sorted[0].value! - sorted[1].value!) / sorted[1].value!) * 100;
+        return { text: `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`, pos: pct >= 0 };
+    }
+
+    function riskLevel(pct: number): string {
+        return pct < 30 ? "Low" : pct < 60 ? "Moderate" : "High";
+    }
+
+    function hba1cSummary(): string {
+        if (!latestHba1c || latestHba1c.value == null)
+            return "No lab data available yet. Check back after upcoming results.";
+        const v = latestHba1c.value;
+        if (v < 5.7) return `HbA1c ${v.toFixed(1)}% — within normal range, well-controlled.`;
+        if (v < 6.5) return `HbA1c ${v.toFixed(1)}% — pre-diabetes range. Close monitoring recommended.`;
+        if (v <= 7.0) return `HbA1c ${v.toFixed(1)}% — diabetes, reasonably controlled. Maintain current regimen.`;
+        return `HbA1c ${v.toFixed(1)}% — above target. Review glycemic management plan.`;
+    }
 
     const riskColor = mlRisk?.risk_label === "High" ? "#ef4444" : mlRisk?.risk_label === "Moderate" ? "#f59e0b" : "#10b981";
     const riskBg = mlRisk?.risk_label === "High" ? "#fee2e2" : mlRisk?.risk_label === "Moderate" ? "#fef3c7" : "#dcfce7";
     const riskText = mlRisk?.risk_label === "High" ? "#991b1b" : mlRisk?.risk_label === "Moderate" ? "#92400e" : "#166534";
+
+    const clinicianUnread = messages.filter(m =>
+        m.fromRole === "clinician" ? (!!m.reply && !m.patientRead) : !m.read
+    ).length;
+    const patientUnread = messages.filter(m =>
+        m.fromRole === "clinician" ? !m.read : (!!m.reply && !m.patientRead)
+    ).length;
 
     const tabs: { id: Tab; label: string }[] = [
         { id: "overview", label: "Overview" },
@@ -267,7 +356,8 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
         { id: "notes", label: "Clinical Notes" },
         { id: "ml-risk", label: "ML Risk Analysis" },
         { id: "care-plan", label: "✦ Care Plan" },
-        ...(portal === "clinician" ? [{ id: "inbox" as Tab, label: "📬 Inbox" }] : []),
+        ...(portal === "clinician" ? [{ id: "inbox" as Tab, label: `📬 Inbox${clinicianUnread > 0 ? ` (${clinicianUnread})` : ""}` }] : []),
+        ...(portal === "patient" ? [{ id: "inbox" as Tab, label: `📬 Inbox${patientUnread > 0 ? ` (${patientUnread})` : ""}` }] : []),
     ];
 
     return (
@@ -288,10 +378,10 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                 <div className="pr-actions">
                     {portal === "patient" ? (
                         <button className="pr-btn pr-btn-primary" onClick={() => setMessageOpen(true)}>
-                            ✉ Send a Message
+                            ✉ Message Clinician
                         </button>
                     ) : (
-                        <button className="pr-btn pr-btn-primary">✉ Message Patient</button>
+                        <button className="pr-btn pr-btn-primary" onClick={() => setMessageOpen(true)}>✉ Message Patient</button>
                     )}
                     <button className="pr-btn" onClick={() => setNoteOpen(true)}>+ Add Note</button>
                     <button className="pr-btn" onClick={() => setScheduleOpen(true)}>📅 Schedule Appointment</button>
@@ -346,19 +436,19 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
 
                         <div className="pr-problems-hdr">
                             <span className="pr-section-title">Latest Problems</span>
-                            <button className="pr-view-all">View All</button>
                         </div>
                         <div className="pr-problems">
-                            <div className="pr-problem">
-                                <span className="pr-problem-icon">⚠</span>
-                                <span>Peripheral Neuropathy</span>
-                                <span className="pr-problem-chev">›</span>
-                            </div>
-                            <div className="pr-problem">
-                                <span className="pr-problem-icon">⚠</span>
-                                <span>Hypertension</span>
-                                <span className="pr-problem-chev">›</span>
-                            </div>
+                            {conditions.length === 0 ? (
+                                <div style={{ fontSize: "13px", color: "#94a3b8", padding: "4px 0" }}>No active conditions on record</div>
+                            ) : (
+                                conditions.slice(0, 4).map(c => (
+                                    <div key={c.id} className="pr-problem">
+                                        <span className="pr-problem-icon">⚠</span>
+                                        <span>{c.display}</span>
+                                        <span className="pr-problem-chev">›</span>
+                                    </div>
+                                ))
+                            )}
                         </div>
 
                         <hr className="pr-hr" />
@@ -366,7 +456,7 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                         <button className="pr-ask-ai" onClick={() => setChatOpen(true)}>✦ Ask AI</button>
 
                         {/* ML Risk Preview in Sidebar */}
-                        {mlRisk && (
+                        {mlRisk && !mlRisk.insufficient_data && (
                             <button
                                 className="pr-ml-preview"
                                 onClick={() => setTab("ml-risk")}
@@ -396,15 +486,15 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                             <>
                                 <div className="pr-vitals">
                                     {[
-                                        { label: "Blood Glucose", value: latestGlucose?.value ?? "—", unit: "mg/dL", change: "+2%", pos: true },
-                                        { label: "Blood Pressure", value: latestBP?.value ?? "—", unit: "mmHg", change: "+3%", pos: true },
-                                        { label: "Heart Rate", value: latestHR?.value ?? "—", unit: "bpm", change: "-1%", pos: false },
-                                        { label: "Weight", value: latestWeight?.value ?? "—", unit: "lbs", change: "+1%", pos: true },
+                                        { label: "Blood Glucose", value: latestGlucose?.value ?? "—", unit: "mg/dL", trend: trendBadge(GLUCOSE_CODES) },
+                                        { label: "Blood Pressure", value: latestBP?.value ?? "—", unit: "mmHg", trend: trendBadge(BP_CODES) },
+                                        { label: "Heart Rate", value: latestHR?.value ?? "—", unit: "bpm", trend: trendBadge(HR_CODES) },
+                                        { label: "Weight", value: latestWeight?.value ?? "—", unit: "lbs", trend: trendBadge(WEIGHT_CODES) },
                                     ].map(v => (
                                         <div key={v.label} className="pr-vital">
                                             <div className="pr-vital-label">{v.label}</div>
                                             <div className="pr-vital-val">{v.value}<span className="pr-vital-unit"> {v.unit}</span></div>
-                                            <span className={`pr-vital-badge ${v.pos ? "pos" : "neg"}`}>{v.change}</span>
+                                            {v.trend && <span className={`pr-vital-badge ${v.trend.pos ? "pos" : "neg"}`}>{v.trend.text}</span>}
                                         </div>
                                     ))}
                                 </div>
@@ -434,7 +524,7 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                                             <span className="pr-ai-star">✦</span>
                                             <div>
                                                 <div className="pr-ai-strip-title">AI Assistant Report</div>
-                                                <div className="pr-ai-strip-text">Your recent labs show good glucose control. Continue monitoring HbA1c levels.</div>
+                                                <div className="pr-ai-strip-text">{hba1cSummary()}</div>
                                             </div>
                                             <span style={{ color: "#94a3b8" }}>›</span>
                                         </div>
@@ -450,8 +540,8 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                                             <div key={r.name} className="pr-risk">
                                                 <div className="pr-risk-text">
                                                     <div className="pr-risk-name">{r.name}</div>
-                                                    <div className="pr-risk-level">Level: {r.level}</div>
-                                                    <div className="pr-risk-factors">Contributing Factors: {r.factors}</div>
+                                                    <div className="pr-risk-level">Level: {riskLevel(r.pct)}</div>
+                                                    <div className="pr-risk-factors">Based on HbA1c {latestHba1c.value?.toFixed(1)}%</div>
                                                 </div>
                                                 <CircleRisk pct={r.pct} color={r.color} />
                                             </div>
@@ -464,22 +554,27 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                         {tab === "labs" && (
                             <div className="pr-card">
                                 <div className="pr-card-title" style={{ marginBottom: "1rem" }}>Lab Results</div>
-                                {observations.length === 0 ? <p className="pr-empty">No lab results available</p> : (
-                                    <table className="pr-table">
-                                        <thead><tr><th>Test</th><th>Value</th><th>Unit</th><th>Date</th><th>Status</th></tr></thead>
-                                        <tbody>
-                                            {observations.slice(0, 40).map(o => (
-                                                <tr key={o.id}>
-                                                    <td>{o.display}</td>
-                                                    <td style={{ fontWeight: 600 }}>{o.value ?? "—"}</td>
-                                                    <td style={{ color: "#64748b" }}>{o.unit ?? "—"}</td>
-                                                    <td>{formatDate(o.effective_date)}</td>
-                                                    <td><span className="pr-status">{o.status}</span></td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                )}
+                                {(() => {
+                                    const clinicalObs = observations.filter(
+                                        o => o.category === "laboratory" || o.category === "vital-signs"
+                                    );
+                                    return clinicalObs.length === 0 ? <p className="pr-empty">No lab results available</p> : (
+                                        <table className="pr-table">
+                                            <thead><tr><th>Test</th><th>Value</th><th>Unit</th><th>Date</th><th>Status</th></tr></thead>
+                                            <tbody>
+                                                {clinicalObs.slice(0, 60).map(o => (
+                                                    <tr key={`${o.id}-${o.code}`}>
+                                                        <td>{o.display}</td>
+                                                        <td style={{ fontWeight: 600 }}>{o.value ?? "—"}</td>
+                                                        <td style={{ color: "#64748b" }}>{o.unit ?? "—"}</td>
+                                                        <td>{formatDate(o.effective_date)}</td>
+                                                        <td><span className="pr-status">{o.status}</span></td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    );
+                                })()}
                             </div>
                         )}
 
@@ -579,8 +674,31 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                         {tab === "inbox" && portal === "clinician" && (
                             <ClinicianInbox
                                 messages={messages}
-                                onMarkRead={id => setMessages(prev => prev.map(m => m.id === id ? { ...m, read: true } : m))}
-                                onReply={(id, reply) => setMessages(prev => prev.map(m => m.id === id ? { ...m, reply } : m))}
+                                onMarkRead={id => {
+                                    setMessages(prev => prev.map(m => m.id === id ? { ...m, read: true } : m));
+                                    markMessageRead(patient.id, id).catch(console.error);
+                                }}
+                                onReply={(id, reply) => {
+                                    setMessages(prev => prev.map(m => m.id === id ? { ...m, reply, patientRead: false } : m));
+                                    replyToMessage(patient.id, id, reply).catch(console.error);
+                                }}
+                            />
+                        )}
+                        {tab === "inbox" && portal === "patient" && (
+                            <PatientInbox
+                                messages={messages}
+                                onPatientMarkRead={id => {
+                                    setMessages(prev => prev.map(m => m.id === id ? { ...m, patientRead: true } : m));
+                                    markMessagePatientRead(patient.id, id).catch(console.error);
+                                }}
+                                onMarkRead={id => {
+                                    setMessages(prev => prev.map(m => m.id === id ? { ...m, read: true } : m));
+                                    markMessageRead(patient.id, id).catch(console.error);
+                                }}
+                                onReply={(id, reply) => {
+                                    setMessages(prev => prev.map(m => m.id === id ? { ...m, reply, patientRead: false } : m));
+                                    replyToMessage(patient.id, id, reply).catch(console.error);
+                                }}
                             />
                         )}
                         {tab === "ml-risk" && (
@@ -589,6 +707,8 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                                     <div className="pr-card-title" style={{ marginBottom: "1.5rem" }}>🤖 ML Diabetes Risk Analysis</div>
                                     {!mlRisk ? (
                                         <p className="pr-empty">Loading ML prediction...</p>
+                                    ) : mlRisk.insufficient_data ? (
+                                        <p className="pr-empty">No HbA1c observations found in this patient's record. ML risk scoring requires at least one HbA1c lab result.</p>
                                     ) : (
                                         <>
                                             {/* Big score display */}
@@ -621,7 +741,7 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                                     )}
                                 </div>
 
-                                {mlRisk && (
+                                {mlRisk && !mlRisk.insufficient_data && (
                                     <div className="pr-card">
                                         <div className="pr-card-title" style={{ marginBottom: "1.25rem" }}>Top Risk Factors</div>
                                         <div style={{ fontSize: "13px", color: "#64748b", marginBottom: "1rem" }}>
@@ -683,17 +803,15 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                 open={messageOpen}
                 onClose={() => setMessageOpen(false)}
                 patientName={patient.full_name}
+                mode={portal === "clinician" ? "clinician" : "patient"}
                 onSend={(body, subject) => {
-                    setMessages(prev => [{
-                        id: crypto.randomUUID(),
-                        patientId: patient.id,
-                        patientName: patient.full_name,
-                        subject,
-                        body,
-                        sentAt: new Date().toISOString(),
-                        read: false,
-                    }, ...prev]);
+                    const id = uid();
+                    const sentAt = new Date().toISOString();
+                    const fromRole = portal === "clinician" ? "clinician" : "patient";
+                    const msg: PatientMessage = { id, patientId: patient.id, patientName: patient.full_name, subject, body, sentAt, read: false, fromRole };
+                    setMessages(prev => [msg, ...prev]);
                     setMessageOpen(false);
+                    sendMessage(patient.id, { id, patientName: patient.full_name, subject, body, sentAt, fromRole }).catch(console.error);
                 }}
             />
 
