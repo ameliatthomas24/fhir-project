@@ -1,4 +1,4 @@
-import { useState } from "react"; /*amelia*/
+import { useState } from "react";
 import { searchPatients } from "../api/client";
 import type { PatientSummary } from "../types";
 import "./PatientSearch.css";
