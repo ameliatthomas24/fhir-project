@@ -517,7 +517,7 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
                                         {!latestHba1c && !latestLDL && !latestHDL && !latestTrig && (
                                             <p className="pr-empty">No lab data available</p>
                                         )}
-                                        <div className="pr-ai-strip">
+                                        <div className="pr-ai-strip" onClick={() => setTab("care-plan")}>
                                             <span className="pr-ai-star">✦</span>
                                             <div>
                                                 <div className="pr-ai-strip-title">AI Assistant Report</div>
