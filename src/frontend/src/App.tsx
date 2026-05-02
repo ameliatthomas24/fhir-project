@@ -31,7 +31,7 @@ export default function App() {
   }
 
   return (
-    <div className="app">
+    <div className={`app ${portal === "patient" ? "patient-portal" : ""}`}>
       <header className="app-header">
         <span className="app-title">Diabetes Management Portal</span>
         <div className="portal-toggle">

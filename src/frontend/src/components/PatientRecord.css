@@ -819,3 +819,20 @@
 .pr-ml-hero-info {
     flex: 1;
 }
+
+/* Patient Portal Theme — Teal/Green */
+.patient-portal .pr-back { color: #95007f; }
+.patient-portal .pr-tab.active { color: #95007f; border-bottom-color: #95007f; }
+.patient-portal .pr-btn-primary { background: #95007f; border-color: #95007f; }
+.patient-portal .pr-btn-primary:hover { background: #7d006b; }
+.patient-portal .pr-ask-ai { background: #95007f; }
+.patient-portal .pr-ask-ai:hover { background: #7d006b; }
+.patient-portal .pr-view-all { color: #95007f; }
+.patient-portal .pr-avatar { background: #ccfbf1; color: #0f766e; }
+.patient-portal .pr-chart-pill.active { background: #95007f; border-color: #95007f; }
+.patient-portal .pr-ai-strip { background: #f0fdfa; border-color: #cf27b6; }
+.patient-portal .pr-ml-preview:hover { background: #f0fdfa; border-color: #cf27b6; }
+.patient-portal .pr-ai-star { color: #95007f; }
+.patient-portal .pr-ai-strip-title { color: #95007f; }
+.patient-portal .pr-ai-strip-text { color: #95007f; }
+.patient-portal .pr-ml-preview:hover { background: #f0fdfa; border-color: #cf27b6; }
