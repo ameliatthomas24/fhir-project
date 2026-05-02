@@ -61,9 +61,14 @@ export async function login(email: string, password: string): Promise<LoginRespo
   return data;
 }
 
-export function searchPatients(name?: string): Promise<PatientSummary[]> {
+function cleanPatientName(name: string): string {
+  return name.replace(/\d+/g, "").replace(/\s+/g, " ").trim();
+}
+
+export async function searchPatients(name?: string): Promise<PatientSummary[]> {
   const query = name ? `?name=${encodeURIComponent(name)}` : "";
-  return apiFetch<PatientSummary[]>(`/patients${query}`);
+  const patients = await apiFetch<PatientSummary[]>(`/patients${query}`);
+  return patients.map((p) => ({ ...p, full_name: cleanPatientName(p.full_name) }));
 }
 
 export function getObservations(patientId: string): Promise<ObservationPoint[]> {

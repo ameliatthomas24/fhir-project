@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from typing import Optional
 
@@ -12,9 +14,9 @@ def _simplify_patient(raw: dict) -> PatientSummary:
     name_list = raw.get("name", [])
     official = next((n for n in name_list if n.get("use") == "official"), None)
     name_entry = official or (name_list[0] if name_list else {})
-    family = name_entry.get("family", "")
-    given = " ".join(name_entry.get("given", []))
-    full_name = f"{given} {family}".strip() or "Unknown"
+    family = re.sub(r"\d+", "", name_entry.get("family", ""))
+    given = " ".join(re.sub(r"\d+", "", g) for g in name_entry.get("given", []))
+    full_name = re.sub(r"\s+", " ", f"{given} {family}").strip() or "Unknown"
 
     telecoms = raw.get("telecom", [])
     phone_entry = next((t for t in telecoms if t.get("system") == "phone"), None)
