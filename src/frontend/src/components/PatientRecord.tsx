@@ -364,7 +364,7 @@ export default function PatientRecord({ patient, portal, onBack }: Props) {
     ];
 
     return (
-        <div className="pr-page">
+        <div className={`pr-page ${portal === "patient" ? "patient-portal" : ""}`}>
             <div className="pr-topbar">
                 <button className="pr-back" onClick={onBack}>← Back to Search Results</button>
                 <span className="pr-portal-label">{portal === "clinician" ? "Clinician Portal" : "Patient Portal"}</span>
