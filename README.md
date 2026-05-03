@@ -221,9 +221,7 @@ Visit `http://localhost:3000`
 | Role | Email | Password |
 |---|---|---|
 | Clinician | `clinician@demo.com` | `clinician123` |
-| Patient 1 | `patient1@demo.com` | `patient123` |
-| Patient 2 | `patient2@demo.com` | `patient456` |
-| Patient 3 | `patient3@demo.com` | `patient789` |
+
 
 ---
 
