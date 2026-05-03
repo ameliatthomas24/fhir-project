@@ -32,7 +32,7 @@ export default function App() {
   }
 
   if (portal === "clinician") {
-    return <ClinicianDashboard onLogout={handleLogout} />;
+    return <ClinicianDashboard onLogout={handleLogout} onSwitchPortal={() => setPortal("patient")} />;
   }
 
   return (

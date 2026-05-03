@@ -9,6 +9,7 @@ type DashTab = "home" | "search" | "appointments" | "messages";
 
 interface Props {
     onLogout: () => void;
+    onSwitchPortal: () => void;
 }
 
 function formatDate(d: string) {
@@ -47,7 +48,7 @@ function isUnread(m: PatientMessage) {
     return m.fromRole === "clinician" ? (!!m.reply && !m.patientRead) : !m.read;
 }
 
-export default function ClinicianDashboard({ onLogout }: Props) {
+export default function ClinicianDashboard({ onLogout, onSwitchPortal }: Props) {
     const [tab, setTab] = useState<DashTab>("home");
     const [selectedPatient, setSelectedPatient] = useState<PatientSummary | null>(null);
     const [highRisk, setHighRisk] = useState<HighRiskPatient[]>([]);
@@ -114,7 +115,7 @@ export default function ClinicianDashboard({ onLogout }: Props) {
                 <div className="cd-sidebar-top">
                     <div className="cd-logo">
                         <div className="cd-logo-icon">♥</div>
-                        <div className="cd-logo-text">DM Portal</div>
+                        <div className="cd-logo-text">Diabetes Management Portal</div>
                     </div>
                     <nav className="cd-nav">
                         {navItems.map(item => (
@@ -132,9 +133,14 @@ export default function ClinicianDashboard({ onLogout }: Props) {
                         ))}
                     </nav>
                 </div>
-                <button className="cd-logout" onClick={onLogout}>
-                    <span>⎋</span> Log out
-                </button>
+                <div className="cd-sidebar-bottom">
+                    <button className="cd-switch-portal" onClick={onSwitchPortal}>
+                        ⇄ View Patient Portal
+                    </button>
+                    <button className="cd-logout" onClick={onLogout}>
+                        <span>⎋</span> Log out
+                    </button>
+                </div>
             </aside>
 
             {/* Main content */}
