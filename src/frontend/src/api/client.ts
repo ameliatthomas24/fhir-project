@@ -65,9 +65,10 @@ function cleanPatientName(name: string): string {
   return name.replace(/\d+/g, "").replace(/\s+/g, " ").trim();
 }
 
-export async function searchPatients(name?: string): Promise<PatientSummary[]> {
-  const query = name ? `?name=${encodeURIComponent(name)}` : "";
-  const patients = await apiFetch<PatientSummary[]>(`/patients${query}`);
+export async function searchPatients(name?: string, count = 20): Promise<PatientSummary[]> {
+  const params = new URLSearchParams({ _count: String(count) });
+  if (name) params.set("name", name);
+  const patients = await apiFetch<PatientSummary[]>(`/patients?${params.toString()}`);
   return patients.map((p) => ({ ...p, full_name: cleanPatientName(p.full_name) }));
 }
 
