@@ -206,7 +206,7 @@ export default function ClinicianDashboard({ onLogout, onSwitchPortal }: Props) 
                             <div className="cd-card">
                                 <div className="cd-card-header">
                                     <span className="cd-card-title">⚠ High-Risk Patients</span>
-                                    <span className="cd-card-sub">HbA1c &gt; 8%</span>
+                                    <span className="cd-card-sub">HbA1c &gt; 6.5%</span>
                                 </div>
                                 {loading ? (
                                     <div className="cd-empty">Loading...</div>
