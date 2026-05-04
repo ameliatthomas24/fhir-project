@@ -40,7 +40,10 @@ export default function App() {
       <header className="app-header">
         <span className="app-title">Diabetes Management Portal</span>
         <div className="portal-toggle">
-          <button onClick={handleLogout} style={{ fontSize: "13px", color: "#64748b", background: "none", border: "none", cursor: "pointer" }}>
+          <button className="toggle-btn active" onClick={() => setPortal("clinician")}>
+            Clinician Portal
+          </button>
+          <button onClick={handleLogout} style={{ marginLeft: "1rem", fontSize: "13px", color: "rgba(255,255,255,0.6)", background: "none", border: "none", cursor: "pointer" }}>
             Log out
           </button>
         </div>
