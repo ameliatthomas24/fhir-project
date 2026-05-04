@@ -54,13 +54,15 @@ CREATE TABLE IF NOT EXISTS messages (
 MIGRATE_MESSAGES_FROM_ROLE = """
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS from_role TEXT NOT NULL DEFAULT 'patient'
 """
+MIGRATE_APPOINTMENTS_PATIENT_NAME = """
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS patient_name TEXT
+"""
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db_url = os.getenv("DATABASE_URL")
-    print(f"DEBUG: Connecting to {db_url}") # <--- ADD THIS
     app.state.db_pool = await asyncpg.create_pool(db_url)
     async with app.state.db_pool.acquire() as conn:
         await conn.execute(CREATE_USERS_TABLE)
@@ -68,6 +70,7 @@ async def lifespan(app: FastAPI):
         await conn.execute(CREATE_APPOINTMENTS_TABLE)
         await conn.execute(CREATE_MESSAGES_TABLE)
         await conn.execute(MIGRATE_MESSAGES_FROM_ROLE)
+        await conn.execute(MIGRATE_APPOINTMENTS_PATIENT_NAME)
     yield
     await app.state.db_pool.close()
 app = FastAPI(

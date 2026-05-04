@@ -1,4 +1,4 @@
-import type { ChatMessage, ConditionSummary, MedicationSummary, Note, ObservationPoint, PatientMessage, PatientSummary, RecommendationResponse, ScheduledAppointment } from "../types";
+import type { AppointmentWithPatient, ChatMessage, ConditionSummary, HighRiskPatient, MedicationSummary, Note, ObservationPoint, PatientMessage, PatientSummary, RecommendationResponse, ScheduledAppointment } from "../types";
 
 const TOKEN_KEY = "auth_token";
 
@@ -65,10 +65,23 @@ function cleanPatientName(name: string): string {
   return name.replace(/\d+/g, "").replace(/\s+/g, " ").trim();
 }
 
-export async function searchPatients(name?: string): Promise<PatientSummary[]> {
-  const query = name ? `?name=${encodeURIComponent(name)}` : "";
-  const patients = await apiFetch<PatientSummary[]>(`/patients${query}`);
+export async function searchPatients(name?: string, count = 20): Promise<PatientSummary[]> {
+  const params = new URLSearchParams({ _count: String(count) });
+  if (name) params.set("name", name);
+  const patients = await apiFetch<PatientSummary[]>(`/patients?${params.toString()}`);
   return patients.map((p) => ({ ...p, full_name: cleanPatientName(p.full_name) }));
+}
+
+export function getHighRiskPatients(): Promise<HighRiskPatient[]> {
+  return apiFetch<HighRiskPatient[]>("/patients/high-risk");
+}
+
+export function getAllAppointments(): Promise<AppointmentWithPatient[]> {
+  return apiFetch<AppointmentWithPatient[]>("/appointments");
+}
+
+export function getAllMessages(): Promise<PatientMessage[]> {
+  return apiFetch<PatientMessage[]>("/messages");
 }
 
 export function getObservations(patientId: string): Promise<ObservationPoint[]> {

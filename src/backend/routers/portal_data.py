@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from auth import get_current_user, require_patient_access
@@ -30,9 +30,20 @@ class AppointmentIn(BaseModel):
     type: str
     reason: str
     status: str = "upcoming"
+    patient_name: Optional[str] = None
 
 class AppointmentOut(BaseModel):
     id: str
+    date: str
+    time: str
+    type: str
+    reason: str
+    status: str
+
+class AppointmentAllOut(BaseModel):
+    id: str
+    patient_id: str
+    patient_name: Optional[str]
     date: str
     time: str
     type: str
@@ -131,10 +142,55 @@ async def create_appointment(
     pool = request.app.state.db_pool
     async with pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO appointments (id, patient_id, date, time, type, reason, status) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-            body.id, patient_id, body.date, body.time, body.type, body.reason, body.status,
+            "INSERT INTO appointments (id, patient_id, patient_name, date, time, type, reason, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+            body.id, patient_id, body.patient_name, body.date, body.time, body.type, body.reason, body.status,
         )
     return AppointmentOut(id=body.id, date=body.date, time=body.time, type=body.type, reason=body.reason, status=body.status)
+
+
+@router.get("/appointments", response_model=list[AppointmentAllOut])
+async def get_all_appointments(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user["role"] != "clinician":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Clinician access required")
+    pool = request.app.state.db_pool
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, patient_id, patient_name, date, time, type, reason, status FROM appointments ORDER BY date ASC, time ASC"
+        )
+    return [AppointmentAllOut(id=r["id"], patient_id=r["patient_id"], patient_name=r["patient_name"], date=r["date"], time=r["time"], type=r["type"], reason=r["reason"], status=r["status"]) for r in rows]
+
+
+@router.get("/messages", response_model=list[MessageOut])
+async def get_all_messages(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user["role"] != "clinician":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Clinician access required")
+    pool = request.app.state.db_pool
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, patient_id, patient_name, subject, body, sent_at, read, reply, patient_read, from_role "
+            "FROM messages ORDER BY sent_at DESC"
+        )
+    return [
+        MessageOut(
+            id=r["id"],
+            patientId=r["patient_id"],
+            patientName=r["patient_name"],
+            subject=r["subject"],
+            body=r["body"],
+            sentAt=r["sent_at"].isoformat(),
+            read=r["read"],
+            reply=r["reply"],
+            patientRead=r["patient_read"],
+            fromRole=r["from_role"],
+        )
+        for r in rows
+    ]
 
 
 # ── Messages ─────────────────────────────────────────────────────────────────
