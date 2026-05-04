@@ -190,7 +190,7 @@ export default function ClinicianDashboard({ onLogout, onSwitchPortal }: Props) 
                                         {upcomingAppts.map(a => (
                                             <div key={a.id} className="cd-list-item" onClick={() => setTab("appointments")}>
                                                 <div className="cd-list-item-main">
-                                                    <div className="cd-list-item-name">{a.patient_name ?? a.patient_id}</div>
+                                                    <div className="cd-list-item-name">{a.patient_name ?? allPatients.find(p => p.id === a.patient_id)?.full_name ?? a.patient_id}</div>
                                                     <div className="cd-list-item-sub">{formatDate(a.date)} · {formatTime(a.time)}</div>
                                                 </div>
                                                 <span className={`cd-type-badge ${a.type === "virtual" ? "virtual" : ""}`}>
@@ -358,7 +358,7 @@ export default function ClinicianDashboard({ onLogout, onSwitchPortal }: Props) 
                                             .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
                                             .map(a => (
                                                 <tr key={a.id} className="cd-table-row-plain">
-                                                    <td>{a.patient_name ?? a.patient_id}</td>
+                                                    <td>{a.patient_name ?? allPatients.find(p => p.id === a.patient_id)?.full_name ?? a.patient_id}</td>
                                                     <td>{formatDate(a.date)}</td>
                                                     <td>{formatTime(a.time)}</td>
                                                     <td>
