@@ -73,7 +73,8 @@ export async function searchPatients(name?: string, count = 20): Promise<Patient
 }
 
 export function getHighRiskPatients(): Promise<HighRiskPatient[]> {
-  return apiFetch<HighRiskPatient[]>("/patients/high-risk");
+  return apiFetch<HighRiskPatient[]>("/patients/high-risk")
+    .then(patients => patients.map(p => ({ ...p, full_name: cleanPatientName(p.full_name) })));
 }
 
 export function getAllAppointments(): Promise<AppointmentWithPatient[]> {
