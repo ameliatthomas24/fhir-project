@@ -97,7 +97,7 @@ async def get_high_risk_patients(
 
     results = []
     for patient_id, obs in latest_obs_by_patient.items():
-        if obs["value"] > 8:
+        if obs["value"] > 6.5:
             patient = patients_by_id.get(patient_id, {})
             name_list = patient.get("name", [])
             official = next((n for n in name_list if n.get("use") == "official"), None)
